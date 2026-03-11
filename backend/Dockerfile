@@ -1,0 +1,29 @@
+FROM python:3.14-slim AS base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-lang-german \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root-User für Playwright-Sandbox
+RUN groupadd --gid 1001 appgroup \
+    && useradd --uid 1001 --gid appgroup --shell /bin/bash --create-home appuser
+
+WORKDIR /app
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -e .
+
+# Playwright-Browser als root installieren (benötigt System-Deps)
+RUN pip install playwright && playwright install chromium --with-deps
+
+USER appuser
+
+COPY --chown=appuser:appgroup app/ ./app/
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -205,3 +205,34 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/src/types/api.ts
+
+# SQLite runtime data
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# ChromaDB runtime data
+chroma_data/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.pdf
+!docs/**/*.pdf
+
+# Secrets — NEVER commit
+infrastructure/secrets/*.txt
+infrastructure/secrets/*.key
+infrastructure/secrets/*.pem
+
+# Coverage
+lcov.info

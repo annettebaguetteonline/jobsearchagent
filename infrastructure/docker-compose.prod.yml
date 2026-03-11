@@ -1,0 +1,35 @@
+services:
+  backend:
+    image: job-agent-backend:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ../data:/app/data
+    secrets:
+      - anthropic_key
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: INFO
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+  frontend:
+    image: job-agent-frontend:latest
+    ports:
+      - "127.0.0.1:80:80"
+    depends_on:
+      - backend
+    networks:
+      - agent-net
+
+secrets:
+  anthropic_key:
+    file: ./secrets/anthropic_key.txt
+
+networks:
+  agent-net:
+    driver: bridge

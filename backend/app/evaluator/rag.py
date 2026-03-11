@@ -1,0 +1,1 @@
+"""Stub — wird später implementiert."""
