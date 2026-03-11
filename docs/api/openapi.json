@@ -1,0 +1,9 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Job Search Agent API",
+    "version": "0.1.0",
+    "description": "Auto-generiert — nicht manuell editieren. 'make types' zum Regenerieren."
+  },
+  "paths": {}
+}

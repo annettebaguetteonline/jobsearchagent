@@ -1,0 +1,9 @@
+# Alle Dateien
+*                           @dombrowsky
+
+# Kritische Verzeichnisse
+backend/app/evaluator/      @dombrowsky
+backend/app/scraper/        @dombrowsky
+backend/app/db/             @dombrowsky
+infrastructure/             @dombrowsky
+.github/                    @dombrowsky
