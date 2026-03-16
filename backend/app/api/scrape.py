@@ -131,7 +131,7 @@ async def _run_scrapers(run_id: int, sources: list[str]) -> None:
             scraper = _SCRAPERS[source_name]()
             if source_name == "kimeta":
                 known = await get_known_source_job_ids(db, "kimeta")
-                scraper.known_job_ids = frozenset(known)  # type: ignore[attr-defined]
+                scraper.known_job_ids = frozenset(known)
             try:
                 # run_id übergeben → kein neuer Run wird innerhalb des Scrapers angelegt
                 stats = await scraper.run(db, run_id=run_id)
