@@ -1,7 +1,7 @@
 # Job Search Agent – Systemdesign
 
-**Version:** 0.4  
-**Stand:** März 2026  
+**Version:** 0.4
+**Stand:** März 2026
 **Status:** In Ausarbeitung
 
 ---
@@ -81,7 +81,6 @@ Externe Services (außerhalb Docker):
 | Relationale DB | SQLite | Lokal, portabel, ausreichend für Abfragevolumen |
 | Vektordatenbank | ChromaDB (embedded) | Kein separater Service nötig |
 | Lokale LLMs | Ollama (nativ) | Bessere GPU-Performance als Docker |
-| LLM-Abstraktion | LiteLLM | Einheitliche API für Ollama + Anthropic, einfaches Modell-Switching |
 | Websuche | duckduckgo-search (Python) | Kein Container, kein API-Key, ausreichend für Firmenwebsite-Suche |
 | LaTeX | TeX Live (im Backend-Container) | CV bereits in LaTeX; kein separater Service nötig |
 | Cloud-LLM | Anthropic API (Haiku/Sonnet) | Tiefanalyse & Anschreiben-Generierung |
@@ -96,33 +95,46 @@ Statt eines Scrapers pro Website: **drei generische Typen** die per Konfiguratio
 
 | Typ | Beschreibung | Beispiele |
 |---|---|---|
-| **A – Strukturiert** | Stabile API oder RSS-Feed | interamt.de, StepStone RSS, service.bund.de |
-| **B – Konfigurierbar** | Bekanntes aber variables Layout, Selektoren in config | Landesportale, XING, academics.de |
+| **A – Strukturiert** | Stabile API oder RSS-Feed | service.bund.de, Bundesagentur, Arbeitnow |
+| **B – Konfigurierbar** | Bekanntes aber variables Layout, JS-SPA | karriere.hessen.de, XING, academics.de |
 | **C – Generisch** | Beliebige Websites, vollständig LLM-basiert | Behörden-Websites, Firmen-Karriereseiten |
 
-Neue Website hinzufügen = einen Eintrag in `sources.json`, kein Code.
-
-### Quellen & Frequenz
+### Implementierungsstand
 
 ```
-Quelle                    Typ   Frequenz      Technologie
-──────────────────────────────────────────────────────────────────
-service.bund.de           A     täglich       RSS (Hessen + RLP)
-interamt.de               A     täglich       URL-Parameter-API
-karriere.hessen.de        B     täglich       Playwright (JS-SPA)
-karriere.rlp.de           B     täglich       Playwright
-StepStone                 A     täglich       RSS-Feed
-Indeed                    A     täglich       RSS-Feed
-XING                      B     täglich       Playwright
-academics.de              B     täglich       Playwright
-──────────────────────────────────────────────────────────────────
-Individuelle Behörden     C     wöchentlich   LLM-Extraktion
-Firmen-Karriereseiten     C     wöchentlich   LLM-Extraktion
+Quelle                    Typ   Status         Volltext              Technologie
+──────────────────────────────────────────────────────────────────────────────────────────
+service.bund.de           A     ✅ Live        ✅ RSS description    RSS (bundesweit)
+Bundesagentur f. Arbeit   A     ✅ Live        ✅ Detail-API         REST JSON API
+Arbeitnow                 A     ✅ Live        ✅ API description    REST JSON API
+Jooble                    A     ✅ Live        ⚠️ Snippet           REST JSON API
+Adzuna                    A     ✅ Live        ⚠️ Snippet           REST JSON API
+Kimeta                    A     ✅ Live        ⚠️ Nur iframe-URLs   Next.js SSR + HTML-Filter (ADR-006)
+Jobbörse.de               A     ✅ Live        ✅ Detail-Seite       httpx + BeautifulSoup
+Stellenmarkt.de           A     ✅ Live        ⚠️ Snippet           RSS-Feed
+interamt.de               B     ✅ Live        ✅ Detail-Seite       Playwright (Listing) + httpx (Detail)
+──────────────────────────────────────────────────────────────────────────────────────────
+karriere.hessen.de        B     📋 Geplant     —                    Playwright (JS-SPA)
+karriere.rlp.de           B     📋 Geplant     —                    Playwright
+Indeed                    A     📋 Geplant     —                    RSS-Feed
+XING                      B     📋 Geplant     —                    Playwright
+academics.de              B     📋 Geplant     —                    Playwright
+──────────────────────────────────────────────────────────────────────────────────────────
+Individuelle Behörden     C     📋 Geplant     —                    LLM-Extraktion
+Firmen-Karriereseiten     C     📋 Geplant     —                    LLM-Extraktion
 ```
 
-> **Hinweis Hessen:** `stellensuche.hessen.de` rendert per JavaScript.
-> Vor Implementierung: Netzwerk-Tab im Browser prüfen ob eine
-> versteckte REST-API vorhanden ist (stabiler als Playwright).
+> **interamt.de — Typ B (Playwright):** Verwendet Apache Wicket AJAX-Framework (Session-gebunden,
+> `JSESSIONID` + `windowName`). Playwright-Scraper implementiert und live. Volltext (`raw_text`)
+> wird nicht befüllt. Siehe ADR-004.
+
+> **service.bund.de — kein Ortsfilter:** Der RSS-Feed hat keine wirksamen Bundesland-Parameter.
+> Es werden alle bundesweiten Stellen gescrapt, Relevanzfilterung übernimmt die
+> Evaluierungs-Pipeline. Siehe ADR-003.
+
+> **Kimeta — Multi-Stage-Suche:** Überwindet das 15-Seiten-Limit durch HTML-basierte
+> Filter-Extraktion (`<a class="pos">`) und Sub-Suchen pro pf-Wert. Volltext nur für
+> Kimeta-gehostete iframe-URLs verfügbar. Siehe [ADR-006](../docs/adr/006-kimeta-multistage-search.md).
 
 > **Hinweis LinkedIn:** Technisch kaum zuverlässig scrapeBar.
 > Empfehlung: `linkedin-api` (inoffizielle mobile App-API) oder
@@ -137,8 +149,8 @@ Firmen-Karriereseiten     C     wöchentlich   LLM-Extraktion
       "run_at": "07:00",
       "timezone": "Europe/Berlin",
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-      "sources": ["service_bund", "interamt", "karriere_hessen",
-                  "karriere_rlp", "stepstone", "indeed", "xing"]
+      "sources": ["service_bund", "arbeitsagentur", "interamt", "arbeitnow",
+                  "stellenmarkt", "adzuna", "jooble", "jobboerse", "kimeta"]
     },
     "weekly": {
       "run_at": "07:00",
@@ -187,20 +199,33 @@ Das Backend muss dafür nicht dauerhaft laufen.
 
 ### Deduplizierung
 
-Eine Stelle die auf StepStone, Indeed und der Firmenwebsite erscheint
+Eine Stelle die auf StepStone, service.bund.de und der Firmenwebsite erscheint
 ist **ein Job mit drei Quellen** – nicht drei Jobs.
 
+Implementiert in `BaseScraper._process_job()`:
+
 ```
+Stufe 0 – Source-Job-ID-Match (schnellster Pfad):
+  Suche in job_sources(source_name, source_job_id)
+  Greift wenn Quelle eigene stabile IDs liefert (z.B. StepStone, service.bund.de)
+
 Stufe 1 – Hash-Match (kostenlos):
-  canonical_id = SHA256(norm_title | norm_company | norm_location)
-  Trifft ~70% der Duplikate
+  canonical_id = SHA256(norm_title | norm_company | norm_ort_ohne_plz)
+  PLZ-Prefix wird vor dem Hashing entfernt: "34117 Kassel" → "kassel"
+  → quell-übergreifende Duplikate zwischen service.bund.de und StepStone
 
 Stufe 2 – Fuzzy-Match (kostenlos):
-  Titel-Ähnlichkeit > 85% + gleiche Firma → wahrscheinlich Duplikat
+  Titel-Ähnlichkeit ≥ 85% (difflib) + gleiche Firma → wahrscheinlich Duplikat
 
-Stufe 3 – LLM (nur Grenzfälle):
+Stufe 3 – LLM (reserviert für spätere Erweiterung):
   Semantisch ähnliche Titel bei gleicher Firma/Ort → LLM entscheidet
+  Noch nicht implementiert.
 ```
+
+Jeder `job_sources`-Eintrag speichert eine `source_job_id` für Stufe 0.
+Duplikate aktualisieren immer `last_seen_at` und upserten die Quell-URL.
+
+Siehe ADR-001 (Dreistufige Deduplizierung), ADR-002 (PLZ-Normalisierung).
 
 ### Firmenwebsite-Suche (gestaffelt)
 
