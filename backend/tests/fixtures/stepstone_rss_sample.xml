@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>StepStone Stellenangebote</title>
+    <link>https://www.stepstone.de</link>
+    <description>Aktuelle Stellenangebote von StepStone</description>
+
+    <item>
+      <title>Senior Python Developer (m/w/d) - Acme Software GmbH</title>
+      <link>https://www.stepstone.de/stellenangebote--Senior-Python-Developer-Frankfurt-Acme-Software-GmbH--12345678-inline.html</link>
+      <pubDate>Thu, 12 Mar 2026 08:00:00 +0000</pubDate>
+      <description>
+        &lt;p&gt;Wir suchen einen erfahrenen Python-Entwickler in Frankfurt am Main.&lt;/p&gt;
+        &lt;p&gt;Arbeitsmodell: Hybrid (2 Tage/Woche vor Ort)&lt;/p&gt;
+      </description>
+      <guid>https://www.stepstone.de/stellenangebote--Senior-Python-Developer-Frankfurt-Acme-Software-GmbH--12345678-inline.html</guid>
+    </item>
+
+    <item>
+      <title>Backend Engineer Golang (m/w/d) - Tech Startup Berlin</title>
+      <link>https://www.stepstone.de/stellenangebote--Backend-Engineer-Golang-Wiesbaden-Tech-Startup--87654321-inline.html</link>
+      <pubDate>Wed, 11 Mar 2026 14:30:00 +0000</pubDate>
+      <description>
+        &lt;p&gt;Backend-Entwickler in Wiesbaden gesucht.&lt;/p&gt;
+      </description>
+      <guid>https://www.stepstone.de/stellenangebote--Backend-Engineer-Golang-Wiesbaden-Tech-Startup--87654321-inline.html</guid>
+    </item>
+
+    <item>
+      <title>DevOps Engineer (m/w/d) - Remote möglich</title>
+      <link>https://www.stepstone.de/stellenangebote--DevOps-Engineer-Remote--11111111-inline.html</link>
+      <pubDate>Tue, 10 Mar 2026 09:00:00 +0000</pubDate>
+      <description>
+        &lt;p&gt;Remote-Position deutschlandweit. Standort: Remote&lt;/p&gt;
+      </description>
+      <guid>https://www.stepstone.de/stellenangebote--DevOps-Engineer-Remote--11111111-inline.html</guid>
+    </item>
+
+    <!-- Sehr altes Posting — soll bei posted_within_days=2 herausgefiltert werden -->
+    <item>
+      <title>Junior Developer (m/w/d) - Old Corp</title>
+      <link>https://www.stepstone.de/stellenangebote--Junior-Developer--99999999-inline.html</link>
+      <pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>
+      <description>&lt;p&gt;Altes Posting in Frankfurt&lt;/p&gt;</description>
+      <guid>https://www.stepstone.de/stellenangebote--Junior-Developer--99999999-inline.html</guid>
+    </item>
+
+  </channel>
+</rss>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>service.bund.de – Stellenangebote</title>
+    <link>https://www.service.bund.de</link>
+    <description>Aktuelle Stellenangebote des öffentlichen Dienstes</description>
+
+    <!-- Job 1: Hessen, mit Bewerbungsfrist -->
+    <item>
+      <title>Sachbearbeiterin/Sachbearbeiter Personal (w/m/d)</title>
+      <link>https://www.service.bund.de/INPCOX/content/Sachbearbeiter-Personal-1111111.html#track=feed-jobs</link>
+      <guid>https://www.service.bund.de/INPCOX/content/Sachbearbeiter-Personal-1111111.html</guid>
+      <pubDate>Thu, 12 Mar 2026 14:00:00 +0100</pubDate>
+      <description><![CDATA[Arbeitgeber: <strong>Landesbetrieb Landwirtschaft Hessen (LLH)</strong><br />
+Ort: <strong>34117 Kassel</strong><br />
+Bewerbungsfrist: <strong>03.04.2026 23:59</strong><br />
+Veröffentlichungsende: <strong>03.04.2026 23:59</strong>]]></description>
+    </item>
+
+    <!-- Job 2: Rheinland-Pfalz, andere Behörde -->
+    <item>
+      <title>IT-Administratorin / IT-Administrator (m/w/d)</title>
+      <link>https://www.service.bund.de/INPCOX/content/IT-Administrator-2222222.html#track=feed-jobs</link>
+      <guid>https://www.service.bund.de/INPCOX/content/IT-Administrator-2222222.html</guid>
+      <pubDate>Wed, 11 Mar 2026 09:30:00 +0100</pubDate>
+      <description><![CDATA[Arbeitgeber: <strong>Finanzamt Mainz</strong><br />
+Ort: <strong>55116 Mainz</strong><br />
+Bewerbungsfrist: <strong>31.03.2026 12:00</strong><br />
+Veröffentlichungsende: <strong>31.03.2026 12:00</strong>]]></description>
+    </item>
+
+    <!-- Job 3: Bayern, keine Bewerbungsfrist -->
+    <item>
+      <title>Referentin / Referent für Digitalisierung (w/m/d)</title>
+      <link>https://www.service.bund.de/INPCOX/content/Referent-Digitalisierung-3333333.html#track=feed-jobs</link>
+      <guid>https://www.service.bund.de/INPCOX/content/Referent-Digitalisierung-3333333.html</guid>
+      <pubDate>Tue, 10 Mar 2026 08:00:00 +0100</pubDate>
+      <description><![CDATA[Arbeitgeber: <strong>Bayerisches Staatsministerium für Digitales</strong><br />
+Ort: <strong>80331 München</strong><br />
+Veröffentlichungsende: <strong>15.04.2026 23:59</strong>]]></description>
+    </item>
+
+    <!-- Job 4: Alt (2024) → wird durch scrape_posted_within_days herausgefiltert -->
+    <item>
+      <title>Verwaltungsfachangestellte/r (w/m/d)</title>
+      <link>https://www.service.bund.de/INPCOX/content/Verwaltung-4444444.html#track=feed-jobs</link>
+      <guid>https://www.service.bund.de/INPCOX/content/Verwaltung-4444444.html</guid>
+      <pubDate>Mon, 01 Jan 2024 08:00:00 +0100</pubDate>
+      <description><![CDATA[Arbeitgeber: <strong>Gemeinde Musterhausen</strong><br />
+Ort: <strong>12345 Musterhausen</strong><br />
+Bewerbungsfrist: <strong>15.01.2024 23:59</strong>]]></description>
+    </item>
+
+  </channel>
+</rss>
