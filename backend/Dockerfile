@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS base
+FROM python:3.13-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-base \
@@ -18,7 +18,10 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir -e .
 
 # Playwright-Browser als root installieren (benötigt System-Deps)
-RUN pip install playwright && playwright install chromium --with-deps
+# PLAYWRIGHT_BROWSERS_PATH → systemweiter Pfad, damit alle User den Browser finden
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN pip install playwright && playwright install chromium --with-deps \
+    && chmod -R 755 /ms-playwright
 
 USER appuser
 

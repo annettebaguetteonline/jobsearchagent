@@ -1,6 +1,6 @@
 .PHONY: setup dev lint types test test-backend test-frontend migrate prod help
 
-PYTHON := python3.14
+PYTHON := python3.13
 VENV   := backend/.venv
 PIP    := $(VENV)/bin/pip
 
@@ -27,8 +27,8 @@ dev: ## Backend-Container + Vite Dev-Server starten
 	cd frontend && npm run dev
 
 lint: ## ruff check + format (Backend) + ESLint (Frontend)
-	cd backend && ../.venv/bin/ruff check .
-	cd backend && ../.venv/bin/ruff format --check .
+	cd backend && .venv/bin/ruff check .
+	cd backend && .venv/bin/ruff format --check .
 	cd frontend && npm run lint
 
 types: ## Frontend-Typen aus OpenAPI-Schema neu generieren
@@ -41,7 +41,7 @@ types: ## Frontend-Typen aus OpenAPI-Schema neu generieren
 test: test-backend test-frontend ## Alle Tests
 
 test-backend: ## Nur pytest
-	cd backend && ../.venv/bin/pytest tests/ -v --tb=short
+	cd backend && .venv/bin/pytest tests/ -v --tb=short
 
 test-frontend: ## Nur Vitest
 	cd frontend && npx vitest run
