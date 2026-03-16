@@ -1,7 +1,7 @@
 """Pydantic-Modelle für die Datenbankentitäten.
 
 Nur die Entitäten die aktuell benötigt werden (Jobs, Quellen,
-Unternehmen, Scrape-Runs). Evaluierungen, Anschreiben usw. folgen später.
+Unternehmen, User, Scrape-Runs). Evaluierungen, Anschreiben usw. folgen später.
 """
 
 from datetime import UTC, datetime
@@ -20,6 +20,23 @@ class Company(CompanyCreate):
     id: int
     address_status: str = "unknown"
     remote_policy: str = "unknown"
+    created_at: str
+    updated_at: str
+
+
+# ─── User ─────────────────────────────────────────────────────────────────────
+
+
+class UserCreate(BaseModel):
+    id: str  # UUID als Text, vom Aufrufer generiert
+    name: str
+    surname: str | None = None
+    profile_json: str | None = None  # Kernprofil-JSON
+    profile_version: str | None = None  # SHA256 des Profils
+    folder: str | None = None  # Pfad zu User-Dokumenten
+
+
+class User(UserCreate):
     created_at: str
     updated_at: str
 

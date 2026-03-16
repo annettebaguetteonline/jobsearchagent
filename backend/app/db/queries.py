@@ -1,4 +1,4 @@
-"""Datenbank-Queries: CRUD-Helfer für Jobs, Quellen, Unternehmen und Scrape-Runs."""
+"""Datenbank-Queries: CRUD-Helfer für Jobs, Quellen, Unternehmen, User und Scrape-Runs."""
 
 import json
 import logging
@@ -12,10 +12,44 @@ from app.db.models import (
     JobSourceCreate,
     ScrapeRun,
     ScrapeRunStats,
+    User,
+    UserCreate,
     now_iso,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ─── User ─────────────────────────────────────────────────────────────────────
+
+
+async def create_user(db: aiosqlite.Connection, user: UserCreate) -> str:
+    """Legt einen neuen User an. Gibt die UUID zurück."""
+    await db.execute(
+        """
+        INSERT INTO users (id, name, surname, profile_json, profile_version, folder)
+        VALUES (:id, :name, :surname, :profile_json, :profile_version, :folder)
+        """,
+        user.model_dump(),
+    )
+    await db.commit()
+    return user.id
+
+
+async def get_user(db: aiosqlite.Connection, user_id: str) -> User | None:
+    """Gibt einen User anhand seiner UUID zurück."""
+    rows = list(await db.execute_fetchall("SELECT * FROM users WHERE id = ?", (user_id,)))
+    if not rows:
+        return None
+    return User.model_validate(dict(rows[0]))
+
+
+async def get_default_user_id(db: aiosqlite.Connection) -> str:
+    """Gibt die ID des ältesten Users zurück (Default-User aus Migration 003)."""
+    rows = list(await db.execute_fetchall("SELECT id FROM users ORDER BY created_at ASC LIMIT 1"))
+    if not rows:
+        raise RuntimeError("Keine User in der Datenbank. Migration 003 ausgeführt?")
+    return str(rows[0]["id"])
 
 
 # ─── Unternehmen ──────────────────────────────────────────────────────────────
@@ -23,12 +57,14 @@ logger = logging.getLogger(__name__)
 
 async def upsert_company(db: aiosqlite.Connection, company: CompanyCreate) -> int:
     """Legt ein neues Unternehmen an oder gibt die ID des vorhandenen zurück."""
-    row = await db.execute_fetchall(
-        "SELECT id FROM companies WHERE name_normalized = ?",
-        (company.name_normalized,),
+    rows = list(
+        await db.execute_fetchall(
+            "SELECT id FROM companies WHERE name_normalized = ?",
+            (company.name_normalized,),
+        )
     )
-    if row:
-        return int(row[0]["id"])
+    if rows:
+        return int(rows[0]["id"])
 
     cursor = await db.execute(
         "INSERT INTO companies (name, name_normalized) VALUES (?, ?)",
@@ -50,7 +86,9 @@ def _row_to_job(row: dict) -> Job:  # type: ignore[type-arg]
 
 async def get_job_by_canonical_id(db: aiosqlite.Connection, canonical_id: str) -> Job | None:
     """Gibt einen Job anhand seiner canonical_id zurück, oder None."""
-    rows = await db.execute_fetchall("SELECT * FROM jobs WHERE canonical_id = ?", (canonical_id,))
+    rows = list(
+        await db.execute_fetchall("SELECT * FROM jobs WHERE canonical_id = ?", (canonical_id,))
+    )
     if not rows:
         return None
     return _row_to_job(dict(rows[0]))
@@ -64,13 +102,15 @@ async def get_job_by_source_job_id(
     Wird für Stage-0-Dedup verwendet: innerhalb einer Quelle ist die eigene ID
     das zuverlässigste Duplikat-Kriterium.
     """
-    rows = await db.execute_fetchall(
-        """
-        SELECT j.* FROM jobs j
-        JOIN job_sources s ON s.job_id = j.id
-        WHERE s.source_name = ? AND s.source_job_id = ?
-        """,
-        (source_name, source_job_id),
+    rows = list(
+        await db.execute_fetchall(
+            """
+            SELECT j.* FROM jobs j
+            JOIN job_sources s ON s.job_id = j.id
+            WHERE s.source_name = ? AND s.source_job_id = ?
+            """,
+            (source_name, source_job_id),
+        )
     )
     if not rows:
         return None
@@ -159,7 +199,9 @@ async def insert_job_source(db: aiosqlite.Connection, source: JobSourceCreate) -
             (source.last_seen_at, source.url),
         )
         await db.commit()
-        rows = await db.execute_fetchall("SELECT id FROM job_sources WHERE url = ?", (source.url,))
+        rows = list(
+            await db.execute_fetchall("SELECT id FROM job_sources WHERE url = ?", (source.url,))
+        )
         return int(rows[0]["id"])
 
 
@@ -231,7 +273,7 @@ async def finish_scrape_run(
 
 async def get_scrape_run(db: aiosqlite.Connection, run_id: int) -> ScrapeRun | None:
     """Gibt einen Scrape-Run anhand seiner ID zurück."""
-    rows = await db.execute_fetchall("SELECT * FROM scrape_runs WHERE id = ?", (run_id,))
+    rows = list(await db.execute_fetchall("SELECT * FROM scrape_runs WHERE id = ?", (run_id,)))
     if not rows:
         return None
     row = dict(rows[0])

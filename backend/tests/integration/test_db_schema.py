@@ -6,9 +6,12 @@ import aiosqlite
 import pytest
 
 from app.db.database import get_db, init_db
-from app.db.models import CompanyCreate, JobCreate, JobSourceCreate, now_iso
+from app.db.models import CompanyCreate, JobCreate, JobSourceCreate, UserCreate, now_iso
 from app.db.queries import (
+    create_user,
+    get_default_user_id,
     get_job_by_canonical_id,
+    get_user,
     insert_job,
     insert_job_source,
     update_job_last_seen,
@@ -35,6 +38,7 @@ async def test_init_db_creates_all_tables(tmp_db: Path) -> None:
         "skill_trends",
         "scrape_runs",
         "clarification_queue",
+        "users",
         "_migrations",
     }
 
@@ -251,6 +255,74 @@ async def test_migration_002_columns_exist(tmp_db: Path) -> None:
         rows = await db.execute_fetchall("PRAGMA table_info(jobs)")
         col_names = {row["name"] for row in rows}
         assert "sector" in col_names, "sector fehlt in jobs"
+        break
+
+
+async def test_migration_003_users_table(tmp_db: Path) -> None:
+    """Migration 003: users-Tabelle und evaluations.user_id sind vorhanden."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        rows = await db.execute_fetchall("PRAGMA table_info(users)")
+        col_names = {row["name"] for row in rows}
+        assert "id" in col_names
+        assert "profile_json" in col_names
+
+        rows = await db.execute_fetchall("PRAGMA table_info(evaluations)")
+        col_names = {row["name"] for row in rows}
+        assert "user_id" in col_names, "user_id fehlt in evaluations"
+        break
+
+
+async def test_migration_003_default_user_exists(tmp_db: Path) -> None:
+    """Migration 003: Default-User ist in der users-Tabelle vorhanden."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        rows = await db.execute_fetchall(
+            "SELECT id FROM users WHERE id = '00000000-0000-0000-0000-000000000001'"
+        )
+        assert rows, "Default-User fehlt"
+        break
+
+
+# ─── CRUD: Users ──────────────────────────────────────────────────────────────
+
+
+async def test_create_and_get_user(tmp_db: Path) -> None:
+    """create_user + get_user: Round-Trip funktioniert."""
+    await init_db(tmp_db)
+
+    user = UserCreate(id="11111111-0000-0000-0000-000000000001", name="Max", surname="Lotz")
+
+    async for db in get_db(tmp_db):
+        returned_id = await create_user(db, user)
+        assert returned_id == user.id
+
+        retrieved = await get_user(db, user.id)
+        assert retrieved is not None
+        assert retrieved.name == "Max"
+        assert retrieved.surname == "Lotz"
+        break
+
+
+async def test_get_user_nonexistent_returns_none(tmp_db: Path) -> None:
+    """get_user gibt None zurück wenn kein User gefunden."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        result = await get_user(db, "does-not-exist")
+        assert result is None
+        break
+
+
+async def test_get_default_user_id(tmp_db: Path) -> None:
+    """get_default_user_id gibt die ID des ältesten Users zurück."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        default_id = await get_default_user_id(db)
+        assert default_id == "00000000-0000-0000-0000-000000000001"
         break
 
 
