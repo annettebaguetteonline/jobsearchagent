@@ -236,3 +236,5 @@ infrastructure/secrets/*.pem
 
 # Coverage
 lcov.info
+
+CLAUDE.md

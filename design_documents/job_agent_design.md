@@ -1,7 +1,7 @@
 # Job Search Agent – Systemdesign
 
-**Version:** 0.4  
-**Stand:** März 2026  
+**Version:** 0.5
+**Stand:** März 2026
 **Status:** In Ausarbeitung
 
 ---
@@ -66,7 +66,6 @@ Externe Services (außerhalb Docker):
   Ollama (nativ, GPU)    → Lokale LLMs (mistral-nemo:12b, nomic-embed-text)
   DB REST API            → ÖPNV-Reisezeiten
   Anthropic API          → Claude Haiku/Sonnet für Tiefanalyse & Anschreiben
-  LiteLLM               → Einheitliche LLM-Schnittstelle (lokale + Cloud-Modelle)
 ```
 
 ### Technologie-Stack
@@ -81,7 +80,6 @@ Externe Services (außerhalb Docker):
 | Relationale DB | SQLite | Lokal, portabel, ausreichend für Abfragevolumen |
 | Vektordatenbank | ChromaDB (embedded) | Kein separater Service nötig |
 | Lokale LLMs | Ollama (nativ) | Bessere GPU-Performance als Docker |
-| LLM-Abstraktion | LiteLLM | Einheitliche API für Ollama + Anthropic, einfaches Modell-Switching |
 | Websuche | duckduckgo-search (Python) | Kein Container, kein API-Key, ausreichend für Firmenwebsite-Suche |
 | LaTeX | TeX Live (im Backend-Container) | CV bereits in LaTeX; kein separater Service nötig |
 | Cloud-LLM | Anthropic API (Haiku/Sonnet) | Tiefanalyse & Anschreiben-Generierung |
@@ -96,33 +94,46 @@ Statt eines Scrapers pro Website: **drei generische Typen** die per Konfiguratio
 
 | Typ | Beschreibung | Beispiele |
 |---|---|---|
-| **A – Strukturiert** | Stabile API oder RSS-Feed | interamt.de, StepStone RSS, service.bund.de |
-| **B – Konfigurierbar** | Bekanntes aber variables Layout, Selektoren in config | Landesportale, XING, academics.de |
+| **A – Strukturiert** | Stabile API oder RSS-Feed | service.bund.de, Bundesagentur, Arbeitnow |
+| **B – Konfigurierbar** | Bekanntes aber variables Layout, JS-SPA | karriere.hessen.de, XING, academics.de |
 | **C – Generisch** | Beliebige Websites, vollständig LLM-basiert | Behörden-Websites, Firmen-Karriereseiten |
 
-Neue Website hinzufügen = einen Eintrag in `sources.json`, kein Code.
-
-### Quellen & Frequenz
+### Implementierungsstand
 
 ```
-Quelle                    Typ   Frequenz      Technologie
-──────────────────────────────────────────────────────────────────
-service.bund.de           A     täglich       RSS (Hessen + RLP)
-interamt.de               A     täglich       URL-Parameter-API
-karriere.hessen.de        B     täglich       Playwright (JS-SPA)
-karriere.rlp.de           B     täglich       Playwright
-StepStone                 A     täglich       RSS-Feed
-Indeed                    A     täglich       RSS-Feed
-XING                      B     täglich       Playwright
-academics.de              B     täglich       Playwright
-──────────────────────────────────────────────────────────────────
-Individuelle Behörden     C     wöchentlich   LLM-Extraktion
-Firmen-Karriereseiten     C     wöchentlich   LLM-Extraktion
+Quelle                    Typ   Status         Volltext              Technologie
+──────────────────────────────────────────────────────────────────────────────────────────
+service.bund.de           A     ✅ Live        ✅ RSS description    RSS (bundesweit)
+Bundesagentur f. Arbeit   A     ✅ Live        ✅ Detail-API         REST JSON API
+Arbeitnow                 A     ✅ Live        ✅ API description    REST JSON API
+Jooble                    A     ✅ Live        ⚠️ Snippet           REST JSON API
+Adzuna                    A     ✅ Live        ⚠️ Snippet           REST JSON API
+Kimeta                    A     ✅ Live        ⚠️ Nur iframe-URLs   Next.js SSR + HTML-Filter (ADR-006)
+Jobbörse.de               A     ✅ Live        ✅ Detail-Seite       httpx + BeautifulSoup
+Stellenmarkt.de           A     ✅ Live        ⚠️ Snippet           RSS-Feed
+interamt.de               B     ✅ Live        ✅ Detail-Seite       Playwright (Listing) + httpx (Detail)
+──────────────────────────────────────────────────────────────────────────────────────────
+karriere.hessen.de        B     📋 Geplant     —                    Playwright (JS-SPA)
+karriere.rlp.de           B     📋 Geplant     —                    Playwright
+Indeed                    A     📋 Geplant     —                    RSS-Feed
+XING                      B     📋 Geplant     —                    Playwright
+academics.de              B     📋 Geplant     —                    Playwright
+──────────────────────────────────────────────────────────────────────────────────────────
+Individuelle Behörden     C     📋 Geplant     —                    LLM-Extraktion
+Firmen-Karriereseiten     C     📋 Geplant     —                    LLM-Extraktion
 ```
 
-> **Hinweis Hessen:** `stellensuche.hessen.de` rendert per JavaScript.
-> Vor Implementierung: Netzwerk-Tab im Browser prüfen ob eine
-> versteckte REST-API vorhanden ist (stabiler als Playwright).
+> **interamt.de — Typ B (Playwright):** Verwendet Apache Wicket AJAX-Framework (Session-gebunden,
+> `JSESSIONID` + `windowName`). Playwright-Scraper implementiert und live. Volltext (`raw_text`)
+> wird nicht befüllt. Siehe ADR-004.
+
+> **service.bund.de — kein Ortsfilter:** Der RSS-Feed hat keine wirksamen Bundesland-Parameter.
+> Es werden alle bundesweiten Stellen gescrapt, Relevanzfilterung übernimmt die
+> Evaluierungs-Pipeline. Siehe ADR-003.
+
+> **Kimeta — Multi-Stage-Suche:** Überwindet das 15-Seiten-Limit durch HTML-basierte
+> Filter-Extraktion (`<a class="pos">`) und Sub-Suchen pro pf-Wert. Volltext nur für
+> Kimeta-gehostete iframe-URLs verfügbar. Siehe [ADR-006](../docs/adr/006-kimeta-multistage-search.md).
 
 > **Hinweis LinkedIn:** Technisch kaum zuverlässig scrapeBar.
 > Empfehlung: `linkedin-api` (inoffizielle mobile App-API) oder
@@ -137,8 +148,8 @@ Firmen-Karriereseiten     C     wöchentlich   LLM-Extraktion
       "run_at": "07:00",
       "timezone": "Europe/Berlin",
       "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-      "sources": ["service_bund", "interamt", "karriere_hessen",
-                  "karriere_rlp", "stepstone", "indeed", "xing"]
+      "sources": ["service_bund", "arbeitsagentur", "interamt", "arbeitnow",
+                  "stellenmarkt", "adzuna", "jooble", "jobboerse", "kimeta"]
     },
     "weekly": {
       "run_at": "07:00",
@@ -187,20 +198,33 @@ Das Backend muss dafür nicht dauerhaft laufen.
 
 ### Deduplizierung
 
-Eine Stelle die auf StepStone, Indeed und der Firmenwebsite erscheint
+Eine Stelle die auf StepStone, service.bund.de und der Firmenwebsite erscheint
 ist **ein Job mit drei Quellen** – nicht drei Jobs.
 
+Implementiert in `BaseScraper._process_job()`:
+
 ```
+Stufe 0 – Source-Job-ID-Match (schnellster Pfad):
+  Suche in job_sources(source_name, source_job_id)
+  Greift wenn Quelle eigene stabile IDs liefert (z.B. StepStone, service.bund.de)
+
 Stufe 1 – Hash-Match (kostenlos):
-  canonical_id = SHA256(norm_title | norm_company | norm_location)
-  Trifft ~70% der Duplikate
+  canonical_id = SHA256(norm_title | norm_company | norm_ort_ohne_plz)
+  PLZ-Prefix wird vor dem Hashing entfernt: "34117 Kassel" → "kassel"
+  → quell-übergreifende Duplikate zwischen service.bund.de und StepStone
 
 Stufe 2 – Fuzzy-Match (kostenlos):
-  Titel-Ähnlichkeit > 85% + gleiche Firma → wahrscheinlich Duplikat
+  Titel-Ähnlichkeit ≥ 85% (difflib) + gleiche Firma → wahrscheinlich Duplikat
 
-Stufe 3 – LLM (nur Grenzfälle):
+Stufe 3 – LLM (reserviert für spätere Erweiterung):
   Semantisch ähnliche Titel bei gleicher Firma/Ort → LLM entscheidet
+  Noch nicht implementiert.
 ```
+
+Jeder `job_sources`-Eintrag speichert eine `source_job_id` für Stufe 0.
+Duplikate aktualisieren immer `last_seen_at` und upserten die Quell-URL.
+
+Siehe ADR-001 (Dreistufige Deduplizierung), ADR-002 (PLZ-Normalisierung).
 
 ### Firmenwebsite-Suche (gestaffelt)
 
@@ -241,18 +265,27 @@ relevanten Felder (Frist, Gehalt, Anforderungen, Arbeitsmodell).
 
 ## 3. Evaluierungs-Pipeline
 
-### Zweistufiger Ansatz
+### Hybrid-Ansatz (Stufe 1a/1b + Stufe 2)
 
 ```
 Neue Stelle
      │
      ▼
 ┌─────────────────────────────────────────────────┐
-│  Stufe 1 – Hard Filter (lokal, Ollama)         │
-│  Standard: mistral-nemo:12b                    │
-│  Nur binäre Entscheidung: PASS / SKIP           │
-│  Kriterien: Ausschluss-Keywords, falscher Ort,  │
-│  völlig falsches Berufsfeld                     │
+│  Stufe 1a – Deterministische Ausschlüsse        │
+│  Keyword-basiert, kein LLM                      │
+│  exclude_keywords aus config.yaml               │
+│  z.B. "Chefarzt", "Professur", "Kfz-Mechanik"  │
+│  → Sofort SKIP bei Treffer (schnell, kostenlos) │
+└──────────────────────┬──────────────────────────┘
+                       │ kein Ausschluss-Treffer
+                       ▼
+┌─────────────────────────────────────────────────┐
+│  Stufe 1b – LLM-Vorfilter (lokal, Ollama)      │
+│  Standard: mistral-nemo:12b                     │
+│  Binäre Entscheidung: PASS / SKIP              │
+│  Kriterien: falsches Berufsfeld, kultureller    │
+│  Mismatch, zu hohes/niedriges Senioritätslevel │
 │  Schwellwert: bewusst liberal (lieber false     │
 │  positive als gute Stellen verlieren)           │
 └──────────────────────┬──────────────────────────┘
@@ -260,10 +293,10 @@ Neue Stelle
                        ▼
 ┌─────────────────────────────────────────────────┐
 │  Stufe 2 – Tiefanalyse (Claude Haiku)          │
-│  Standard: claude-haiku-4-5                    │
-│  Input: Stelle + Kontext (siehe Strategie)     │
+│  Standard: claude-haiku-4-5                     │
+│  Input: Stelle + Kontext (siehe Strategie)      │
 │  Output: Score 1–10 + 5 Dimensionen            │
-│          + Empfehlung + Details bei Score ≥ 7  │
+│          + Empfehlung + Details bei Score ≥ 7   │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -697,6 +730,23 @@ CREATE TABLE clarification_queue (
     created_at      TEXT DEFAULT (datetime('now'))
 );
 ```
+
+#### Multi-User-Support (Migration 003)
+
+User-bezogene Tabellen erhalten `user_id TEXT REFERENCES users(id)`:
+
+| Tabelle | Änderung |
+|---|---|
+| `evaluations` | `UNIQUE(job_id)` → `UNIQUE(job_id, user_id)` |
+| `feedback` | `user_id` FK hinzugefügt |
+| `cover_letters` | `user_id` FK hinzugefügt |
+| `preference_patterns` | `user_id` FK hinzugefügt |
+
+Geteilte Tabellen (ohne `user_id`): `jobs`, `companies`, `job_sources`,
+`transit_cache`, `scrape_runs`, `clarification_queue`, `job_skills`, `skill_trends`.
+
+Default-User `00000000-…-000000000001` wird automatisch angelegt.
+Vollständige Details: [ADR-007](../docs/adr/007-datenbankdesign.md).
 
 ### Designprinzipien
 
@@ -1132,7 +1182,7 @@ gegen `mistral-nemo:12b` ist in Phase 1 eingeplant.
 |---|---|
 | RAG Embeddings | Spezialisiert, schnell, kostenlos |
 
-#### Claude API (via LiteLLM)
+#### Claude API (Anthropic SDK)
 
 **`claude-haiku-4-5`** – günstig, schnell, strukturierter Output:
 
@@ -1150,46 +1200,36 @@ gegen `mistral-nemo:12b` ist in Phase 1 eingeplant.
 | Kernprofil-Extraktion | Basis für alles andere – hier nicht sparen |
 | Stil-Extraktion | Beeinflusst alle zukünftigen Anschreiben |
 
-### Einheitliche Schnittstelle: LiteLLM
+### Einheitliche Schnittstelle: ModelRegistry (direkte SDKs)
 
-Statt zwei separater Clients (Ollama + Anthropic SDK) wird
-**LiteLLM** als einheitliche Abstraktionsschicht verwendet.
+Statt LiteLLM als Abstraktionsschicht (aufgrund dokumentierter
+Sicherheitsprobleme entfernt — siehe Tech-Audit, 10+ CVEs) werden
+die Provider-SDKs direkt verwendet:
+
+- **`anthropic`** (AsyncAnthropic) für Claude-Tasks
+- **`ollama`** (AsyncClient) für lokale Modelle + Embeddings
+
+Die `ModelRegistry` bleibt als einheitliche Schnittstelle bestehen —
+intern dispatcht sie basierend auf dem `provider`-Feld in der
+`TaskConfig` an den jeweiligen Client.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    ModelRegistry                         │
 │           registry.complete(task, prompt)                │
-└──────────────────────┬───────────────────────────────────┘
-                       │ einheitlicher Call
-               ┌───────▼────────┐
-               │    LiteLLM     │
-               └───────┬────────┘
-          ┌────────────┼──────────────┐
-          ▼            ▼              ▼
-     Anthropic      Ollama        (weitere
-    (Claude)     (lokal, GPU)    bei Bedarf)
+└──────────────┬──────────────────────┬────────────────────┘
+               │ provider="anthropic" │ provider="ollama"
+               ▼                      ▼
+        AsyncAnthropic          AsyncClient
+         (anthropic)             (ollama)
+               │                      │
+               ▼                      ▼
+         Anthropic API         Ollama (lokal, GPU)
 ```
 
-Kernvorteil: Modell wechseln = eine Zeile in `config.yaml`,
-kein Code-Änderung. Direkte Voraussetzung für den Modell-A/B-Test.
-
-```python
-import litellm
-
-# Lokales Modell
-response = await litellm.acompletion(
-    model="ollama/mistral-nemo:12b",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.1,
-)
-
-# Claude Haiku – identischer Call, anderer model-String
-response = await litellm.acompletion(
-    model="anthropic/claude-haiku-4-5",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.1,
-)
-```
+Kernvorteil bleibt: Modell wechseln = eine Zeile in `config.yaml`.
+Provider wechseln = `provider`-Feld anpassen. Direkte Voraussetzung
+für den Modell-A/B-Test.
 
 ### Konfiguration
 
@@ -1276,7 +1316,8 @@ models:
 
 from enum import Enum
 from dataclasses import dataclass
-import litellm
+import anthropic
+import ollama
 from app.core.config import Settings
 
 class ModelTask(str, Enum):
@@ -1293,7 +1334,8 @@ class ModelTask(str, Enum):
 
 @dataclass
 class TaskConfig:
-    model:       str    # "ollama/mistral-nemo:12b" oder "anthropic/claude-haiku-4-5"
+    provider:    str    # "ollama" oder "anthropic"
+    model:       str    # "mistral-nemo:12b" oder "claude-haiku-4-5"
     temperature: float
     max_tokens:  int
     timeout_s:   int
@@ -1303,18 +1345,27 @@ class ModelRegistry:
     Zentraler Zugangspunkt für alle LLM-Calls.
     Einmalig beim Start initialisiert, per Dependency Injection
     an alle Services weitergegeben.
+
+    Dispatcht intern an anthropic.AsyncAnthropic oder
+    ollama.AsyncClient — kein LiteLLM (siehe Tech-Audit).
     """
 
     def __init__(self, settings: Settings):
-        litellm.anthropic_key = settings.anthropic_api_key
+        self._anthropic = anthropic.AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+        )
+        self._ollama = ollama.AsyncClient(
+            host=settings.ollama_host,
+        )
         self._configs = self._build_configs(settings)
 
     def _build_configs(self, settings) -> dict[ModelTask, TaskConfig]:
         configs = {}
-        for section, prefix in [("ollama", "ollama"), ("anthropic", "anthropic")]:
+        for section in ("ollama", "anthropic"):
             for task_name, cfg in settings.models[section]["tasks"].items():
                 configs[ModelTask(task_name)] = TaskConfig(
-                    model=f"{prefix}/{cfg['model']}",
+                    provider=section,
+                    model=cfg["model"],
                     temperature=cfg["temperature"],
                     max_tokens=cfg["max_tokens"],
                     timeout_s=cfg["timeout_s"],
@@ -1329,27 +1380,37 @@ class ModelRegistry:
     ) -> str:
         """Einheitlicher Completion-Call – Provider-Details sind gekapselt."""
         cfg = self._configs[task]
+
+        if cfg.provider == "anthropic":
+            response = await self._anthropic.messages.create(
+                model=cfg.model,
+                max_tokens=cfg.max_tokens,
+                temperature=cfg.temperature,
+                system=system or "",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text
+
+        # provider == "ollama"
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        response = await litellm.acompletion(
+        response = await self._ollama.chat(
             model=cfg.model,
             messages=messages,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-            timeout=cfg.timeout_s,
+            options={"temperature": cfg.temperature, "num_predict": cfg.max_tokens},
         )
-        return response.choices[0].message.content
+        return response["message"]["content"]
 
     async def embed(self, text: str) -> list[float]:
         """Embedding – immer lokal via nomic-embed-text."""
-        response = await litellm.aembedding(
-            model="ollama/nomic-embed-text",
+        response = await self._ollama.embed(
+            model="nomic-embed-text",
             input=text,
         )
-        return response.data[0]["embedding"]
+        return response["embeddings"][0]
 ```
 
 Verwendung in der Evaluierungs-Pipeline:
@@ -1464,6 +1525,14 @@ mistral-small:22b    ~14 GB      ★★★★★   ★★★★★       Zu gro�
 ---
 
 ## 10. Offene Punkte
+
+### Erledigt
+
+| Thema | Block | Notiz |
+|---|---|---|
+| **Multi-User-Support** | Block 3 | Migration 003: `users`-Tabelle, `user_id` FK in evaluations/feedback/cover_letters/preference_patterns. Details: ADR-007. |
+| **LiteLLM entfernt** | Block 4 | Durch direkte `anthropic` + `ollama` SDKs ersetzt (Tech-Audit: 10+ CVEs). |
+| **Hybrid Stage-1-Filter** | Block 4 | Stufe 1a (deterministisch) + Stufe 1b (Ollama) statt reinem LLM-Filter. |
 
 ### Zurückgestellt (bewusst)
 

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head><title>Kimeta Filter Test Fixture</title></head>
+<body>
+<!-- Position filter links (class="jsx-123 pos") -->
+<ul>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=position&amp;pf=position%40Consultant%20(m%2Fw%2Fd)">
+      Consultant<span class="jsx-891179909">556</span>
+    </a>
+  </li>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=position&amp;pf=position%40Senior%20Consultant%20(m%2Fw%2Fd)">
+      Senior Consultant<span class="jsx-891179909">312</span>
+    </a>
+  </li>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=position&amp;pf=t%C3%A4tigkeitsbereich%40Software%20%26%20IT">
+      Software &amp; IT<span class="jsx-891179909">3489</span>
+    </a>
+  </li>
+  <!-- Duplicate href — should appear only once -->
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=position&amp;pf=position%40Consultant%20(m%2Fw%2Fd)">
+      Consultant (duplicate)<span class="jsx-891179909">556</span>
+    </a>
+  </li>
+</ul>
+<!-- Contract filter links -->
+<ul>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=contract&amp;pf=besch%C3%A4ftigungsart%40Festanstellung">
+      Festanstellung<span class="jsx-891179909">20852</span>
+    </a>
+  </li>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=contract&amp;pf=besch%C3%A4ftigungsart%40Ausbildung">
+      Ausbildung<span class="jsx-891179909">450</span>
+    </a>
+  </li>
+  <li class="jsx-891179909 ">
+    <a rel="nofollow" class="jsx-891179909 pos"
+       href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;cat=contract&amp;pf=zeitintensit%C3%A4t%40Vollzeit">
+      Vollzeit<span class="jsx-891179909">18000</span>
+    </a>
+  </li>
+</ul>
+<!-- Non-filter link — should NOT be picked up (no "pos" class) -->
+<a rel="nofollow" class="jsx-891179909 other-class"
+   href="/search?q=&amp;loc=Frankfurt&amp;r=10&amp;pf=something%40value">
+  Should be ignored
+</a>
+<!-- Non-filter link — has "pos" in longer class name, not as own class -->
+<div class="jsx-3437402549 position">container div — not a link</div>
+</body>
+</html>

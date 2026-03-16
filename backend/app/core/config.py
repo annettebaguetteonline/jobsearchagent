@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     home_address: str = "Frankfurt, Germany"
     max_commute_min: int = 60
 
+    # Scraping-Konfiguration
+    # scrape_keywords: Leere Liste = kein Keyword-Filter, alle Jobs der Location scrapen
+    scrape_keywords: list[str] = []
+    scrape_locations: list[str] = ["Frankfurt", "Wiesbaden", "Darmstadt", "Remote"]
+    scrape_radius_km: int = 50
+    scrape_posted_within_days: int = 2
+    # scrape_exclude_keywords: Leere Liste = kein harter Ausschluss
+    scrape_exclude_keywords: list[str] = []
+
     @property
     def anthropic_api_key(self) -> str:
         """Lese Anthropic-Key aus Docker-Secret — niemals aus Umgebungsvariablen."""
@@ -39,6 +48,21 @@ class Settings(BaseSettings):
                 "Bitte infrastructure/secrets/anthropic_key.txt anlegen."
             )
         return key
+
+    @property
+    def adzuna_app_id(self) -> str | None:
+        """Adzuna API App-ID aus Docker-Secret (optional)."""
+        return _read_secret("adzuna_app_id")
+
+    @property
+    def adzuna_app_key(self) -> str | None:
+        """Adzuna API App-Key aus Docker-Secret (optional)."""
+        return _read_secret("adzuna_app_key")
+
+    @property
+    def jooble_api_key(self) -> str | None:
+        """Jooble API-Key aus Docker-Secret (optional)."""
+        return _read_secret("jooble_api_key")
 
 
 settings = Settings()
