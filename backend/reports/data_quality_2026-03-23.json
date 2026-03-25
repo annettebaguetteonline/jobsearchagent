@@ -1,0 +1,363 @@
+{
+  "generated_at": "2026-03-23T09:03:54Z",
+  "db_path": "/home/maxlotz/jobsearchagent/data/jobs.db",
+  "general": {
+    "total_jobs": 14603,
+    "total_active": 14371,
+    "total_expired": 232,
+    "total_companies": 5727,
+    "total_sources": 9,
+    "first_seen": "2026-03-12T20:49:16Z",
+    "last_seen": "2026-03-22T12:44:20Z",
+    "status_breakdown": {
+      "expired": 232,
+      "new": 14371
+    }
+  },
+  "sources": [
+    {
+      "source_name": "kimeta",
+      "job_count": 7772,
+      "first_seen": "2026-03-14T22:08:23Z",
+      "last_seen": "2026-03-22T12:44:08Z"
+    },
+    {
+      "source_name": "interamt",
+      "job_count": 5335,
+      "first_seen": "2026-03-13T13:45:10Z",
+      "last_seen": "2026-03-22T11:05:56Z"
+    },
+    {
+      "source_name": "service_bund",
+      "job_count": 946,
+      "first_seen": "2026-03-12T20:49:16Z",
+      "last_seen": "2026-03-22T07:40:19Z"
+    },
+    {
+      "source_name": "arbeitnow",
+      "job_count": 345,
+      "first_seen": "2026-03-14T20:11:48Z",
+      "last_seen": "2026-03-22T12:44:20Z"
+    },
+    {
+      "source_name": "arbeitsagentur",
+      "job_count": 328,
+      "first_seen": "2026-03-13T10:41:22Z",
+      "last_seen": "2026-03-22T07:42:15Z"
+    },
+    {
+      "source_name": "stepstone",
+      "job_count": 148,
+      "first_seen": "2026-03-12T21:30:42Z",
+      "last_seen": "2026-03-13T09:32:48Z"
+    },
+    {
+      "source_name": "stellenmarkt",
+      "job_count": 128,
+      "first_seen": "2026-03-14T20:14:21Z",
+      "last_seen": "2026-03-14T20:14:23Z"
+    },
+    {
+      "source_name": "indeed",
+      "job_count": 37,
+      "first_seen": "2026-03-13T18:34:54Z",
+      "last_seen": "2026-03-14T09:33:33Z"
+    },
+    {
+      "source_name": "jobboerse",
+      "job_count": 9,
+      "first_seen": "2026-03-14T20:16:00Z",
+      "last_seen": "2026-03-14T21:16:17Z"
+    }
+  ],
+  "location": {
+    "jobs_with_location": 14473,
+    "jobs_without_location": 130,
+    "location_coverage_pct": 99.11,
+    "distinct_locations": 3903,
+    "plz_city_count": 8422,
+    "city_only_count": 6032,
+    "remote_count": 19,
+    "unparseable_count": 130,
+    "top_locations": [
+      {
+        "location": "Frankfurt am Main",
+        "count": 1036
+      },
+      {
+        "location": "Mannheim",
+        "count": 274
+      },
+      {
+        "location": "Wiesbaden",
+        "count": 241
+      },
+      {
+        "location": "Mainz",
+        "count": 166
+      },
+      {
+        "location": "Darmstadt",
+        "count": 157
+      },
+      {
+        "location": "Heidelberg",
+        "count": 135
+      },
+      {
+        "location": "Frankfurt",
+        "count": 113
+      },
+      {
+        "location": "Berlin",
+        "count": 82
+      },
+      {
+        "location": "55116 Mainz",
+        "count": 80
+      },
+      {
+        "location": "Bad Homburg",
+        "count": 71
+      },
+      {
+        "location": "Hanau",
+        "count": 57
+      },
+      {
+        "location": "60311 Frankfurt am Main",
+        "count": 56
+      },
+      {
+        "location": "Gießen",
+        "count": 52
+      },
+      {
+        "location": "Ludwigshafen am Rhein",
+        "count": 50
+      },
+      {
+        "location": "15236 Frankfurt (Oder)",
+        "count": 50
+      },
+      {
+        "location": "Aschaffenburg",
+        "count": 49
+      },
+      {
+        "location": "60386 Frankfurt am Main",
+        "count": 49
+      },
+      {
+        "location": "64283 Darmstadt",
+        "count": 47
+      },
+      {
+        "location": "15230 Frankfurt (Oder)",
+        "count": 46
+      },
+      {
+        "location": "15517 Fürstenwalde/Spree",
+        "count": 45
+      }
+    ],
+    "per_source_coverage": [
+      {
+        "source_name": "arbeitnow",
+        "total": 345,
+        "with_location": 345,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "arbeitsagentur",
+        "total": 328,
+        "with_location": 326,
+        "coverage_pct": 99.39
+      },
+      {
+        "source_name": "indeed",
+        "total": 37,
+        "with_location": 37,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "interamt",
+        "total": 5335,
+        "with_location": 5335,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "jobboerse",
+        "total": 9,
+        "with_location": 9,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "kimeta",
+        "total": 7772,
+        "with_location": 7772,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "service_bund",
+        "total": 946,
+        "with_location": 946,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "stellenmarkt",
+        "total": 128,
+        "with_location": 0,
+        "coverage_pct": 0.0
+      },
+      {
+        "source_name": "stepstone",
+        "total": 148,
+        "with_location": 148,
+        "coverage_pct": 100.0
+      }
+    ]
+  },
+  "companies": {
+    "total_companies": 5727,
+    "address_found": 0,
+    "address_unknown": 5727,
+    "address_failed": 0,
+    "with_lat_lng": 0,
+    "with_remote_policy": 0
+  },
+  "work_model": {
+    "breakdown": {
+      "null": 14337,
+      "remote": 266
+    },
+    "null_count": 14337,
+    "null_pct": 98.18
+  },
+  "salary": {
+    "with_salary_raw": 0,
+    "without_salary_raw": 14603,
+    "salary_coverage_pct": 0.0,
+    "with_parsed_min_max": 0
+  },
+  "raw_text": {
+    "with_raw_text": 12904,
+    "without_raw_text": 1699,
+    "raw_text_coverage_pct": 88.37,
+    "avg_text_length": 2259.5,
+    "per_source_coverage": [
+      {
+        "source_name": "arbeitnow",
+        "total": 345,
+        "with_text": 345,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "arbeitsagentur",
+        "total": 328,
+        "with_text": 18,
+        "coverage_pct": 5.49
+      },
+      {
+        "source_name": "indeed",
+        "total": 37,
+        "with_text": 0,
+        "coverage_pct": 0.0
+      },
+      {
+        "source_name": "interamt",
+        "total": 5335,
+        "with_text": 5131,
+        "coverage_pct": 96.18
+      },
+      {
+        "source_name": "jobboerse",
+        "total": 9,
+        "with_text": 9,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "kimeta",
+        "total": 7772,
+        "with_text": 6761,
+        "coverage_pct": 86.99
+      },
+      {
+        "source_name": "service_bund",
+        "total": 946,
+        "with_text": 946,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "stellenmarkt",
+        "total": 128,
+        "with_text": 128,
+        "coverage_pct": 100.0
+      },
+      {
+        "source_name": "stepstone",
+        "total": 148,
+        "with_text": 0,
+        "coverage_pct": 0.0
+      }
+    ]
+  },
+  "duplicates": {
+    "total_jobs": 14603,
+    "total_source_entries": 15943,
+    "source_to_job_ratio": 1.09,
+    "jobs_with_multiple_sources": 1154,
+    "max_sources_per_job": 11
+  },
+  "recommendations": [
+    {
+      "category": "location",
+      "severity": "high",
+      "message": "Quelle 'stellenmarkt' liefert keine Locations. Parser oder Scraper anpassen.",
+      "affected_count": 128,
+      "affected_pct": 100.0
+    },
+    {
+      "category": "work_model",
+      "severity": "high",
+      "message": "Work-Model-Erkennung aus raw_text implementieren (detect_work_model_from_text)",
+      "affected_count": 14337,
+      "affected_pct": 98.18
+    },
+    {
+      "category": "raw_text",
+      "severity": "medium",
+      "message": "Quellen ['arbeitsagentur', 'indeed', 'interamt', 'kimeta', 'stepstone'] liefern keinen Volltext. Detail-Fetching verbessern.",
+      "affected_count": 1699,
+      "affected_pct": 11.63
+    },
+    {
+      "category": "raw_text",
+      "severity": "medium",
+      "message": "Quelle 'indeed' liefert keinen Volltext.",
+      "affected_count": 37,
+      "affected_pct": 100.0
+    },
+    {
+      "category": "raw_text",
+      "severity": "medium",
+      "message": "Quelle 'stepstone' liefert keinen Volltext.",
+      "affected_count": 148,
+      "affected_pct": 100.0
+    },
+    {
+      "category": "salary",
+      "severity": "low",
+      "message": "Gehaltsdaten spärlich (0.0%). Ggf. Salary-Extraktion aus Volltext.",
+      "affected_count": 14603,
+      "affected_pct": 100.0
+    },
+    {
+      "category": "general",
+      "severity": "high",
+      "message": "Firmen-Adressen fast vollständig unaufgelöst. Location Pipeline implementieren.",
+      "affected_count": 5727,
+      "affected_pct": 100.0
+    }
+  ]
+}

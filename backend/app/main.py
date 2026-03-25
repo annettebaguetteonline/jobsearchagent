@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import cover_letters, evaluation, jobs, scrape
+from app.api import cover_letters, evaluation, jobs, location, scrape
 from app.core.logging import configure_logging
 from app.db.database import init_db
 
@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(scrape.router, prefix="/api/scrape", tags=["scrape"])
     app.include_router(evaluation.router, prefix="/api/evaluation", tags=["evaluation"])
     app.include_router(cover_letters.router, prefix="/api/cover-letters", tags=["cover-letters"])
+    app.include_router(location.router, prefix="/api/location", tags=["location"])
 
     return app
 

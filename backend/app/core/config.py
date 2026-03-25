@@ -28,6 +28,9 @@ class Settings(BaseSettings):
 
     home_address: str = "Frankfurt, Germany"
     max_commute_min: int = 60
+    transit_departure_time: str = "08:00"
+    transit_departure_weekday: str = "tuesday"
+    transit_cache_ttl_days: int = 90
 
     # Scraping-Konfiguration
     # scrape_keywords: Leere Liste = kein Keyword-Filter, alle Jobs der Location scrapen
