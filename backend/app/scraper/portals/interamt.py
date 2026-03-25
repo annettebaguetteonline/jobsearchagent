@@ -42,6 +42,7 @@ _SEARCH_URL = "https://interamt.de/koop/app/trefferliste"
 _JOB_URL_TEMPLATE = "https://interamt.de/koop/app/stelle?id={job_id}"
 _DEBUG_FILE = Path("data/interamt_debug.html")
 _DETAIL_SLEEP = 1.0  # Sekunden zwischen Detail-Requests
+_DETAIL_CONCURRENCY = 5  # Parallele Detail-Requests
 _DETAIL_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -174,6 +175,17 @@ async def _fetch_raw_text(client: httpx.AsyncClient, url: str) -> str | None:
     return None
 
 
+async def _fetch_with_sem(
+    sem: asyncio.Semaphore,
+    client: httpx.AsyncClient,
+    job: ScrapedJob,
+) -> None:
+    """Fetcht einen Job-Volltext mit Semaphore für Parallelitätsbegrenzung."""
+    async with sem:
+        job.raw_text = await _fetch_raw_text(client, job.url)
+        await asyncio.sleep(_DETAIL_SLEEP)
+
+
 # ─── Scraper-Klasse ────────────────────────────────────────────────────────────
 
 
@@ -206,13 +218,24 @@ class InteramtScraper(BaseScraper):
                 await context.close()
                 await browser.close()
 
-        # Phase 2: Detail-Seiten für Volltext via httpx
+        # Phase 2: Detail-Seiten für Volltext via httpx (parallel)
         async with httpx.AsyncClient(
             headers=_DETAIL_HEADERS, timeout=20.0, follow_redirects=True
         ) as client:
-            for job in all_jobs:
-                job.raw_text = await _fetch_raw_text(client, job.url)
-                await asyncio.sleep(_DETAIL_SLEEP)
+            sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
+            total = len(all_jobs)
+            logger.info(
+                "[interamt] Fetche Volltexte für %d Jobs (Parallelität: %d) ...",
+                total,
+                _DETAIL_CONCURRENCY,
+            )
+            tasks = [_fetch_with_sem(sem, client, job) for job in all_jobs]
+            completed = 0
+            for coro in asyncio.as_completed(tasks):
+                await coro
+                completed += 1
+                if completed % 50 == 0 or completed == total:
+                    logger.info("[interamt] Volltext: %d / %d", completed, total)
 
         logger.info("[interamt] Gesamt: %d Jobs", len(all_jobs))
         return all_jobs
@@ -276,14 +299,26 @@ class InteramtScraper(BaseScraper):
                 break  # Kein Button mehr → alle Jobs geladen
 
             await asyncio.sleep(random.uniform(2.0, 3.5))  # noqa: S311
-            # Warte auf neue Zeilen
+            # Warte auf neue Zeilen (max 5 Sekunden, nicht 10)
+            rows_loaded = False
             try:
                 await page.wait_for_function(
                     f"document.querySelectorAll('tr.ia-e-table__row').length > {len(rows)}",
-                    timeout=10_000,
+                    timeout=5_000,
                 )
-            except Exception:  # noqa: BLE001
-                break  # Timeout → keine neuen Zeilen geladen
+                rows_loaded = True
+            except Exception as exc:  # noqa: BLE001
+                # Keine neuen Zeilen nach kurzer Wartezeit
+                logger.debug("[interamt] Keine neuen Zeilen nach Klick: %s", exc)
+
+            if not rows_loaded:
+                # Überprüfe nochmal ob Button noch existiert
+                has_more = await page.evaluate(
+                    "() => { const btn = document.getElementById('id1'); "
+                    "return btn && !btn.disabled; }"
+                )
+                if not has_more:
+                    break  # Button weg oder disabled → alle Jobs geladen
 
             load_more_rounds += 1
 

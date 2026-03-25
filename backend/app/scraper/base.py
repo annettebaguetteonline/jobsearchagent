@@ -19,6 +19,7 @@ from app.db.queries import (
     insert_job,
     insert_job_source,
     update_job_last_seen,
+    update_job_raw_text,
     upsert_company,
 )
 
@@ -215,6 +216,14 @@ class BaseScraper(ABC):
                     scraped.company_name,
                 )
                 await update_job_last_seen(db, existing.id, ts)
+                # Fülle raw_text nach, falls bestehender Job keine hat
+                if scraped.raw_text and not existing.raw_text:
+                    await update_job_raw_text(db, existing.id, scraped.raw_text)
+                    logger.debug(
+                        "[%s] raw_text nachgefüllt für job_id=%d",
+                        self.source_name,
+                        existing.id,
+                    )
                 await insert_job_source(
                     db,
                     JobSourceCreate(
@@ -241,6 +250,14 @@ class BaseScraper(ABC):
         if existing:
             logger.debug("Duplikat (Hash): %s @ %s", scraped.title, scraped.company_name)
             await update_job_last_seen(db, existing.id, ts)
+            # Fülle raw_text nach, falls bestehender Job keine hat
+            if scraped.raw_text and not existing.raw_text:
+                await update_job_raw_text(db, existing.id, scraped.raw_text)
+                logger.debug(
+                    "[%s] raw_text nachgefüllt für job_id=%d",
+                    self.source_name,
+                    existing.id,
+                )
             await insert_job_source(
                 db,
                 JobSourceCreate(

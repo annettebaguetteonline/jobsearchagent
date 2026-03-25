@@ -18,8 +18,18 @@ class CompanyCreate(BaseModel):
 
 class Company(CompanyCreate):
     id: int
-    address_status: str = "unknown"
+    name_aliases: str | None = None  # JSON
+    address_street: str | None = None
+    address_city: str | None = None
+    address_zip: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    address_status: str = "unknown"  # 'unknown'|'found'|'failed'
+    address_source: str | None = None  # 'db'|'impressum'|'searxng'|'nominatim'
+    agent_findings: str | None = None  # JSON
     remote_policy: str = "unknown"
+    careers_url: str | None = None
+    ats_system: str | None = None
     created_at: str
     updated_at: str
 

@@ -6,6 +6,7 @@ import logging
 import aiosqlite
 
 from app.db.models import (
+    Company,
     CompanyCreate,
     Job,
     JobCreate,
@@ -286,3 +287,155 @@ async def get_scrape_run(db: aiosqlite.Connection, run_id: int) -> ScrapeRun | N
         stats=ScrapeRunStats(**json.loads(row["stats"])) if row.get("stats") else None,
         error_log=json.loads(row["error_log"]) if row.get("error_log") else None,
     )
+
+
+async def update_job_raw_text(db: aiosqlite.Connection, job_id: int, raw_text: str) -> None:
+    """Aktualisiert raw_text für einen Job."""
+    await db.execute(
+        "UPDATE jobs SET raw_text = ?, updated_at = ? WHERE id = ?",
+        (raw_text, now_iso(), job_id),
+    )
+    await db.commit()
+
+
+# ─── Unternehmen (erweitert) ─────────────────────────────────────────────────
+
+
+async def get_company(db: aiosqlite.Connection, company_id: int) -> Company | None:
+    """Lade ein Unternehmen mit allen Feldern."""
+    cursor = await db.execute("SELECT * FROM companies WHERE id = ?", (company_id,))
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return Company(**dict(row))
+
+
+async def get_company_by_normalized_name(
+    db: aiosqlite.Connection, name_normalized: str
+) -> Company | None:
+    """Suche Unternehmen anhand des normalisierten Namens."""
+    cursor = await db.execute(
+        "SELECT * FROM companies WHERE name_normalized = ?",
+        (name_normalized,),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return Company(**dict(row))
+
+
+async def update_company_address(
+    db: aiosqlite.Connection,
+    company_id: int,
+    street: str | None,
+    city: str | None,
+    zip_code: str | None,
+    lat: float | None,
+    lng: float | None,
+    source: str,
+) -> None:
+    """Aktualisiere die Adresse eines Unternehmens."""
+    await db.execute(
+        """
+        UPDATE companies
+        SET address_street = ?, address_city = ?, address_zip = ?,
+            lat = ?, lng = ?, address_status = 'found',
+            address_source = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (street, city, zip_code, lat, lng, source, now_iso(), company_id),
+    )
+    await db.commit()
+
+
+async def mark_company_address_failed(db: aiosqlite.Connection, company_id: int) -> None:
+    """Markiere die Adressauflösung als fehlgeschlagen."""
+    await db.execute(
+        "UPDATE companies SET address_status = 'failed', updated_at = ? WHERE id = ?",
+        (now_iso(), company_id),
+    )
+    await db.commit()
+
+
+# ─── Transit-Cache ───────────────────────────────────────────────────────────
+
+
+async def get_transit_cached(
+    db: aiosqlite.Connection, company_id: int, origin_hash: str
+) -> int | None:
+    """Hole gecachte Transitzeit. Gibt None zurück bei Cache-Miss oder Ablauf."""
+    cursor = await db.execute(
+        """
+        SELECT transit_minutes FROM transit_cache
+        WHERE company_id = ? AND origin_hash = ?
+          AND expires_at > datetime('now')
+        """,
+        (company_id, origin_hash),
+    )
+    row = await cursor.fetchone()
+    return row["transit_minutes"] if row else None
+
+
+async def upsert_transit_cache(
+    db: aiosqlite.Connection,
+    company_id: int,
+    origin_hash: str,
+    transit_minutes: int,
+    api_used: str,
+    ttl_days: int = 90,
+) -> None:
+    """Schreibe oder aktualisiere den Transit-Cache."""
+    await db.execute(
+        """
+        INSERT INTO transit_cache (company_id, origin_hash, transit_minutes,
+                                    api_used, cached_at, expires_at)
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now', '+' || ? || ' days'))
+        ON CONFLICT(company_id, origin_hash) DO UPDATE SET
+            transit_minutes = excluded.transit_minutes,
+            api_used = excluded.api_used,
+            cached_at = excluded.cached_at,
+            expires_at = excluded.expires_at
+        """,
+        (company_id, origin_hash, transit_minutes, api_used, ttl_days),
+    )
+    await db.commit()
+
+
+# ─── Location-Pipeline Queries ───────────────────────────────────────────────
+
+
+async def get_companies_needing_address(
+    db: aiosqlite.Connection, limit: int = 50
+) -> list[tuple[int, str]]:
+    """Unternehmen ohne aufgelöste Adresse."""
+    cursor = await db.execute(
+        "SELECT id, name FROM companies WHERE address_status = 'unknown' LIMIT ?",
+        (limit,),
+    )
+    rows = await cursor.fetchall()
+    return [(row["id"], row["name"]) for row in rows]
+
+
+async def get_jobs_needing_location_score(db: aiosqlite.Connection, limit: int = 100) -> list[Job]:
+    """Aktive Jobs ohne Location-Score."""
+    cursor = await db.execute(
+        """
+        SELECT * FROM jobs
+        WHERE location_status = 'unknown'
+          AND is_active = 1
+          AND status NOT IN ('expired', 'ignored')
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    rows = await cursor.fetchall()
+    return [Job(**dict(row)) for row in rows]
+
+
+async def update_job_location_status(db: aiosqlite.Connection, job_id: int, status: str) -> None:
+    """Aktualisiere den Location-Status eines Jobs."""
+    await db.execute(
+        "UPDATE jobs SET location_status = ?, updated_at = ? WHERE id = ?",
+        (status, now_iso(), job_id),
+    )
+    await db.commit()
