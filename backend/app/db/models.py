@@ -127,3 +127,68 @@ class ScrapeRun(BaseModel):
 def now_iso() -> str:
     """Aktueller UTC-Zeitstempel als ISO-8601-String."""
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+# ─── Evaluierungen ───────────────────────────────────────────────────────────
+
+
+class EvaluationCreate(BaseModel):
+    job_id: int
+    user_id: str
+    eval_strategy: str | None = None
+    stage1_pass: bool | None = None
+    stage1_reason: str | None = None
+    stage1_model: str | None = None
+    stage1_ms: int | None = None
+    evaluated_at: str
+    profile_version: str | None = None
+
+
+class Evaluation(EvaluationCreate):
+    id: int
+    stage2_score: float | None = None
+    stage2_score_breakdown: str | None = None  # JSON
+    stage2_recommendation: str | None = None
+    stage2_match_reasons: str | None = None  # JSON
+    stage2_missing_skills: str | None = None  # JSON
+    stage2_salary_estimate: str | None = None
+    stage2_summary: str | None = None
+    stage2_application_tips: str | None = None  # JSON
+    stage2_model: str | None = None
+    stage2_tokens_used: int | None = None
+    stage2_ms: int | None = None
+    location_score: float | None = None
+    location_effective_minutes: int | None = None
+    needs_reevaluation: bool = False
+
+
+# ─── Feedback ────────────────────────────────────────────────────────────────
+
+
+class FeedbackCreate(BaseModel):
+    job_id: int
+    user_id: str
+    decision: str
+    reasoning: str | None = None
+    model_score: float | None = None
+    model_recommendation: str | None = None
+    score_delta: float | None = None
+    job_snapshot: str | None = None  # JSON
+    model_reasoning_snapshot: str | None = None
+    decided_at: str
+    feedback_version: int | None = None
+    is_seed: bool = False
+
+
+class Feedback(FeedbackCreate):
+    id: int
+
+
+# ─── Job Skills ──────────────────────────────────────────────────────────────
+
+
+class JobSkillCreate(BaseModel):
+    job_id: int
+    skill: str
+    skill_type: str | None = None  # 'required'|'nice_to_have'|'mentioned'
+    confidence: float | None = None

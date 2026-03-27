@@ -8,8 +8,13 @@ import aiosqlite
 from app.db.models import (
     Company,
     CompanyCreate,
+    Evaluation,
+    EvaluationCreate,
+    Feedback,
+    FeedbackCreate,
     Job,
     JobCreate,
+    JobSkillCreate,
     JobSourceCreate,
     ScrapeRun,
     ScrapeRunStats,
@@ -437,5 +442,309 @@ async def update_job_location_status(db: aiosqlite.Connection, job_id: int, stat
     await db.execute(
         "UPDATE jobs SET location_status = ?, updated_at = ? WHERE id = ?",
         (status, now_iso(), job_id),
+    )
+    await db.commit()
+
+
+# ─── Evaluierungen ───────────────────────────────────────────────────────────
+
+
+def _row_to_evaluation(row: dict) -> Evaluation:  # type: ignore[type-arg]
+    """Wandelt eine DB-Zeile in ein Evaluation-Objekt um."""
+    row["stage1_pass"] = bool(row["stage1_pass"]) if row.get("stage1_pass") is not None else None
+    row["needs_reevaluation"] = bool(row.get("needs_reevaluation", 0))
+    return Evaluation.model_validate(row)
+
+
+async def upsert_evaluation(db: aiosqlite.Connection, ev: EvaluationCreate) -> int:
+    """Erstellt oder aktualisiert eine Evaluierung (UNIQUE auf job_id, user_id).
+
+    Bei Konflikt werden die Stage-1-Felder und Metadaten aktualisiert.
+    """
+    cursor = await db.execute(
+        """
+        INSERT INTO evaluations (
+            job_id, user_id, eval_strategy, stage1_pass, stage1_reason,
+            stage1_model, stage1_ms, evaluated_at, profile_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(job_id, user_id) DO UPDATE SET
+            eval_strategy = excluded.eval_strategy,
+            stage1_pass = excluded.stage1_pass,
+            stage1_reason = excluded.stage1_reason,
+            stage1_model = excluded.stage1_model,
+            stage1_ms = excluded.stage1_ms,
+            evaluated_at = excluded.evaluated_at,
+            profile_version = excluded.profile_version
+        """,
+        (
+            ev.job_id,
+            ev.user_id,
+            ev.eval_strategy,
+            int(ev.stage1_pass) if ev.stage1_pass is not None else None,
+            ev.stage1_reason,
+            ev.stage1_model,
+            ev.stage1_ms,
+            ev.evaluated_at,
+            ev.profile_version,
+        ),
+    )
+    await db.commit()
+    # Hole die ID (bei INSERT = lastrowid, bei UPDATE brauchen wir SELECT)
+    if cursor.lastrowid and cursor.lastrowid > 0:
+        return cursor.lastrowid
+    rows = list(
+        await db.execute_fetchall(
+            "SELECT id FROM evaluations WHERE job_id = ? AND user_id = ?",
+            (ev.job_id, ev.user_id),
+        )
+    )
+    return int(rows[0]["id"])
+
+
+async def get_evaluation(db: aiosqlite.Connection, job_id: int, user_id: str) -> Evaluation | None:
+    """Gibt die Evaluierung für einen Job und User zurück."""
+    cursor = await db.execute(
+        "SELECT * FROM evaluations WHERE job_id = ? AND user_id = ?",
+        (job_id, user_id),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_evaluation(dict(row))
+
+
+async def get_jobs_needing_evaluation(
+    db: aiosqlite.Connection, user_id: str, limit: int = 100
+) -> list[Job]:
+    """Aktive Jobs ohne Evaluierung für den angegebenen User."""
+    cursor = await db.execute(
+        """
+        SELECT j.* FROM jobs j
+        LEFT JOIN evaluations e ON e.job_id = j.id AND e.user_id = ?
+        WHERE j.is_active = 1
+          AND j.status NOT IN ('expired', 'ignored')
+          AND e.id IS NULL
+        LIMIT ?
+        """,
+        (user_id, limit),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_job(dict(row)) for row in rows]
+
+
+async def get_jobs_needing_stage2(
+    db: aiosqlite.Connection, user_id: str, limit: int = 50
+) -> list[tuple[int, int]]:
+    """Jobs die Stage 1 bestanden haben aber noch kein Stage-2-Score besitzen.
+
+    Returns:
+        Liste von (job_id, eval_id) Tupeln.
+    """
+    cursor = await db.execute(
+        """
+        SELECT job_id, id FROM evaluations
+        WHERE user_id = ?
+          AND stage1_pass = 1
+          AND stage2_score IS NULL
+        LIMIT ?
+        """,
+        (user_id, limit),
+    )
+    rows = await cursor.fetchall()
+    return [(row["job_id"], row["id"]) for row in rows]
+
+
+async def update_evaluation_stage1(
+    db: aiosqlite.Connection,
+    eval_id: int,
+    stage1_pass: bool,
+    stage1_reason: str | None,
+    stage1_model: str,
+    stage1_ms: int,
+) -> None:
+    """Aktualisiert die Stage-1-Ergebnisse einer Evaluierung."""
+    await db.execute(
+        """
+        UPDATE evaluations
+        SET stage1_pass = ?, stage1_reason = ?, stage1_model = ?, stage1_ms = ?,
+            evaluated_at = ?
+        WHERE id = ?
+        """,
+        (int(stage1_pass), stage1_reason, stage1_model, stage1_ms, now_iso(), eval_id),
+    )
+    await db.commit()
+
+
+async def update_evaluation_stage2(
+    db: aiosqlite.Connection,
+    eval_id: int,
+    score: float,
+    score_breakdown: str,
+    recommendation: str,
+    match_reasons: str,
+    missing_skills: str,
+    salary_estimate: str | None,
+    summary: str,
+    application_tips: str,
+    model: str,
+    tokens_used: int,
+    duration_ms: int,
+    location_score: float | None = None,
+    location_effective_minutes: int | None = None,
+) -> None:
+    """Aktualisiert die Stage-2-Ergebnisse einer Evaluierung."""
+    await db.execute(
+        """
+        UPDATE evaluations
+        SET stage2_score = ?, stage2_score_breakdown = ?,
+            stage2_recommendation = ?, stage2_match_reasons = ?,
+            stage2_missing_skills = ?, stage2_salary_estimate = ?,
+            stage2_summary = ?, stage2_application_tips = ?,
+            stage2_model = ?, stage2_tokens_used = ?, stage2_ms = ?,
+            location_score = ?, location_effective_minutes = ?,
+            evaluated_at = ?
+        WHERE id = ?
+        """,
+        (
+            score,
+            score_breakdown,
+            recommendation,
+            match_reasons,
+            missing_skills,
+            salary_estimate,
+            summary,
+            application_tips,
+            model,
+            tokens_used,
+            duration_ms,
+            location_score,
+            location_effective_minutes,
+            now_iso(),
+            eval_id,
+        ),
+    )
+    await db.commit()
+
+
+# ─── Feedback ────────────────────────────────────────────────────────────────
+
+
+def _row_to_feedback(row: dict) -> Feedback:  # type: ignore[type-arg]
+    """Wandelt eine DB-Zeile in ein Feedback-Objekt um."""
+    row["is_seed"] = bool(row.get("is_seed", 0))
+    return Feedback.model_validate(row)
+
+
+async def insert_feedback(db: aiosqlite.Connection, fb: FeedbackCreate) -> int:
+    """Fügt ein neues Feedback ein und gibt seine ID zurück."""
+    cursor = await db.execute(
+        """
+        INSERT INTO feedback (
+            job_id, user_id, decision, reasoning, model_score,
+            model_recommendation, score_delta, job_snapshot,
+            model_reasoning_snapshot, decided_at, feedback_version, is_seed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            fb.job_id,
+            fb.user_id,
+            fb.decision,
+            fb.reasoning,
+            fb.model_score,
+            fb.model_recommendation,
+            fb.score_delta,
+            fb.job_snapshot,
+            fb.model_reasoning_snapshot,
+            fb.decided_at,
+            fb.feedback_version,
+            int(fb.is_seed),
+        ),
+    )
+    await db.commit()
+    assert cursor.lastrowid is not None
+    return cursor.lastrowid
+
+
+async def get_feedback_for_user(
+    db: aiosqlite.Connection, user_id: str, limit: int = 20
+) -> list[Feedback]:
+    """Gibt die letzten Feedbacks eines Users zurück (neueste zuerst)."""
+    cursor = await db.execute(
+        "SELECT * FROM feedback WHERE user_id = ? ORDER BY decided_at DESC LIMIT ?",
+        (user_id, limit),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_feedback(dict(row)) for row in rows]
+
+
+async def get_seed_feedback(db: aiosqlite.Connection, user_id: str) -> list[Feedback]:
+    """Gibt alle Seed-Feedbacks eines Users zurück (is_seed=1)."""
+    cursor = await db.execute(
+        "SELECT * FROM feedback WHERE user_id = ? AND is_seed = 1 ORDER BY decided_at ASC",
+        (user_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_feedback(dict(row)) for row in rows]
+
+
+# ─── Job Skills ──────────────────────────────────────────────────────────────
+
+
+async def upsert_job_skills(
+    db: aiosqlite.Connection, job_id: int, skills: list[JobSkillCreate]
+) -> int:
+    """Fügt Skills für einen Job ein oder aktualisiert sie. Gibt die Anzahl zurück."""
+    count = 0
+    for skill in skills:
+        await db.execute(
+            """
+            INSERT INTO job_skills (job_id, skill, skill_type, confidence)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(job_id, skill) DO UPDATE SET
+                skill_type = excluded.skill_type,
+                confidence = excluded.confidence
+            """,
+            (job_id, skill.skill, skill.skill_type, skill.confidence),
+        )
+        count += 1
+    await db.commit()
+    return count
+
+
+# ─── Re-Evaluierung & Profil ────────────────────────────────────────────────
+
+
+async def mark_needs_reevaluation(db: aiosqlite.Connection, user_id: str) -> int:
+    """Setzt needs_reevaluation=1 für alle Evaluierungen eines Users.
+
+    Wird aufgerufen wenn sich das Kernprofil ändert. Gibt die Anzahl
+    aktualisierter Zeilen zurück.
+    """
+    cursor = await db.execute(
+        """
+        UPDATE evaluations
+        SET needs_reevaluation = 1
+        WHERE user_id = ? AND needs_reevaluation = 0
+        """,
+        (user_id,),
+    )
+    await db.commit()
+    return cursor.rowcount or 0
+
+
+async def update_user_profile(
+    db: aiosqlite.Connection,
+    user_id: str,
+    profile_json: str,
+    profile_version: str,
+) -> None:
+    """Aktualisiert das Kernprofil-JSON und die Version eines Users."""
+    await db.execute(
+        """
+        UPDATE users
+        SET profile_json = ?, profile_version = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (profile_json, profile_version, now_iso(), user_id),
     )
     await db.commit()

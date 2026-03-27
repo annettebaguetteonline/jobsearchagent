@@ -41,6 +41,36 @@ class Settings(BaseSettings):
     # scrape_exclude_keywords: Leere Liste = kein harter Ausschluss
     scrape_exclude_keywords: list[str] = []
 
+    # ─── Evaluierung ─────────────────────────────────────────────────────────
+    # eval_exclude_keywords: Keyword-Liste für Stage-1a deterministischen Filter.
+    # Jobs deren Titel oder raw_text eines dieser Keywords enthält werden
+    # sofort aussortiert (Word-Boundary-Matching, case-insensitive).
+    # Leere Liste = kein harter Ausschluss.
+    eval_exclude_keywords: list[str] = []
+    # Maximale Zeichenanzahl aus raw_text die an Stage-1b (LLM) übergeben wird
+    eval_stage1_raw_text_limit: int = 1500
+    # Modell für Stage-2-Evaluierung (detaillierte Bewertung)
+    eval_stage2_model: str = "claude-haiku-4-5"
+    # Batch-Größe für Stage-2-Verarbeitung
+    eval_stage2_batch_size: int = 50
+    # Gewichtung der Score-Dimensionen in Stage 2 (muss sich zu 1.0 addieren)
+    eval_stage2_weights: dict[str, float] = {
+        "skills": 0.35,
+        "level": 0.25,
+        "domain": 0.20,
+        "location": 0.15,
+        "potential": 0.05,
+    }
+    # Verfügbare Evaluierungsstrategien
+    eval_strategies: list[str] = ["structured_core", "rag_hybrid"]
+
+    # ─── Profil-Extraktion ───────────────────────────────────────────────────
+    profile_extraction_model: str = "claude-sonnet-4-20250514"
+
+    # ─── RAG ─────────────────────────────────────────────────────────────────
+    rag_chunk_max_tokens: int = 400
+    rag_top_k: int = 5
+
     @property
     def anthropic_api_key(self) -> str:
         """Lese Anthropic-Key aus Docker-Secret — niemals aus Umgebungsvariablen."""

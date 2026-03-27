@@ -39,6 +39,7 @@ async def test_init_db_creates_all_tables(tmp_db: Path) -> None:
         "scrape_runs",
         "clarification_queue",
         "users",
+        "evaluation_batches",
         "_migrations",
     }
 
@@ -342,4 +343,109 @@ async def test_foreign_key_constraint_enforced(tmp_db: Path) -> None:
                 (99999, "https://example.com/job", "stepstone", "aggregator", ts, ts),
             )
             await db.commit()
+        break
+
+
+# ─── Migration 005: Evaluierungs-Pipeline ─────────────────────────────────────
+
+
+async def test_evaluation_batches_table_exists(tmp_db: Path) -> None:
+    """Migration 005 erstellt die evaluation_batches-Tabelle."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='evaluation_batches'"
+        )
+        row = await cursor.fetchone()
+        assert row is not None, "Tabelle 'evaluation_batches' wurde nicht erstellt"
+        break
+
+
+async def test_evaluation_batches_columns(tmp_db: Path) -> None:
+    """evaluation_batches hat alle erwarteten Spalten."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        rows = await db.execute_fetchall("PRAGMA table_info(evaluation_batches)")
+        columns = {row["name"] for row in rows}
+        expected = {
+            "id",
+            "user_id",
+            "batch_api_id",
+            "strategy",
+            "status",
+            "job_count",
+            "completed_count",
+            "error_count",
+            "submitted_at",
+            "completed_at",
+            "error_log",
+        }
+        assert expected.issubset(columns), f"Fehlende Spalten: {expected - columns}"
+        break
+
+
+async def test_evaluation_batch_status_default(tmp_db: Path) -> None:
+    """evaluation_batches.status hat Default-Wert 'submitted'."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        ts = now_iso()
+        default_user = "00000000-0000-0000-0000-000000000001"
+
+        await db.execute(
+            """
+            INSERT INTO evaluation_batches
+            (user_id, batch_api_id, strategy, job_count, submitted_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (default_user, "batch_12345", "structured_core", 50, ts),
+        )
+        await db.commit()
+
+        rows = await db.execute_fetchall(
+            "SELECT status FROM evaluation_batches WHERE batch_api_id = ?",
+            ("batch_12345",),
+        )
+        assert rows[0]["status"] == "submitted"
+        break
+
+
+async def test_eval_batch_indices_exist(tmp_db: Path) -> None:
+    """Migration 005 erstellt die required Indizes für evaluation_batches."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        rows = await db.execute_fetchall(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='evaluation_batches'"
+        )
+        index_names = {row["name"] for row in rows}
+        expected_indices = {
+            "idx_eval_batch_status",
+            "idx_eval_batch_user",
+            "idx_eval_batch_api_id",
+        }
+        assert expected_indices.issubset(index_names), (
+            f"Fehlende Indizes: {expected_indices - index_names}"
+        )
+        break
+
+
+async def test_performance_indices_created(tmp_db: Path) -> None:
+    """Migration 005 erstellt die Performance-Indizes für Pipeline-Queries."""
+    await init_db(tmp_db)
+
+    async for db in get_db(tmp_db):
+        rows = await db.execute_fetchall("SELECT name FROM sqlite_master WHERE type='index'")
+        index_names = {row["name"] for row in rows}
+
+        expected_indices = {
+            "idx_jobs_active_new",
+            "idx_eval_needs_reeval",
+            "idx_job_skills_job",
+        }
+        assert expected_indices.issubset(index_names), (
+            f"Fehlende Performance-Indizes: {expected_indices - index_names}"
+        )
         break

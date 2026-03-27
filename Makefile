@@ -51,3 +51,9 @@ migrate: ## DB-Migrationen ausführen
 
 prod: ## Produktionsdeployment
 	docker compose -f infrastructure/docker-compose.prod.yml up -d
+
+# ─── Ollama ──────────────────────────────────────────────────────────────────
+
+.PHONY: ollama-setup
+ollama-setup: ## Ollama installieren/prüfen und Modelle herunterladen
+	@bash scripts/setup_ollama.sh
