@@ -100,6 +100,20 @@ class ProfileExtractRequest(BaseModel):
     user_id: str
 
 
+class PreferencePatternItem(BaseModel):
+    type: str
+    key: str
+    value: str | None
+    confidence: float | None
+    sample_count: int | None
+
+
+class FeedbackStats(BaseModel):
+    total: int
+    by_decision: dict[str, int]
+    preference_patterns: list[PreferencePatternItem]
+
+
 # ─── Hilfsfunktionen ────────────────────────────────────────────────────────
 
 
@@ -394,6 +408,55 @@ async def get_stats(user_id: str) -> EvaluationStats:
 
 
 # ─── Feedback ───────────────────────────────────────────────────────────────
+
+
+@router.get("/feedback-stats")
+async def get_feedback_stats(user_id: str) -> FeedbackStats:
+    """Feedback-Statistiken für einen User: Gesamtanzahl, Verteilung und Präferenzmuster."""
+    async for db in get_db():
+        cursor = await db.execute(
+            "SELECT COUNT(*) as cnt FROM feedback WHERE user_id = ?",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        total = row["cnt"] if row else 0
+
+        cursor = await db.execute(
+            """
+            SELECT decision, COUNT(*) as cnt
+            FROM feedback
+            WHERE user_id = ?
+            GROUP BY decision
+            """,
+            (user_id,),
+        )
+        dec_rows = await cursor.fetchall()
+        by_decision = {r["decision"]: r["cnt"] for r in dec_rows}
+
+        cursor = await db.execute(
+            """
+            SELECT pattern_type, pattern_key, pattern_value, confidence, sample_count
+            FROM preference_patterns
+            WHERE user_id = ? AND is_active = 1
+            ORDER BY confidence DESC
+            LIMIT 10
+            """,
+            (user_id,),
+        )
+        pat_rows = await cursor.fetchall()
+        patterns = [
+            PreferencePatternItem(
+                type=r["pattern_type"],
+                key=r["pattern_key"],
+                value=r["pattern_value"],
+                confidence=r["confidence"],
+                sample_count=r["sample_count"],
+            )
+            for r in pat_rows
+        ]
+
+        return FeedbackStats(total=total, by_decision=by_decision, preference_patterns=patterns)
+    raise RuntimeError("Keine Datenbankverbindung verfügbar")
 
 
 @router.post("/feedback")

@@ -748,3 +748,185 @@ async def update_user_profile(
         (profile_json, profile_version, now_iso(), user_id),
     )
     await db.commit()
+
+
+# ─── Jobs API Queries ───────────────────────────────────────────────────────
+
+
+async def get_jobs_paginated(
+    db: aiosqlite.Connection,
+    *,
+    user_id: str,
+    status: str | None = None,
+    min_score: float | None = None,
+    work_model: str | None = None,
+    source: str | None = None,
+    search: str | None = None,
+    has_deadline: bool | None = None,
+    sort_by: str = "date",
+    sort_dir: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[int, list[dict[str, object]]]:
+    """Paginierte Job-Liste mit optionalen Filtern.
+
+    Gibt (total_count, jobs_with_eval) zurück. Jeder Job enthält die zugehörige
+    Evaluierung (score, recommendation) per LEFT JOIN.
+    """
+    conditions: list[str] = ["j.is_active = 1"]
+    params: list[str | float | int] = []
+
+    if status is not None:
+        conditions.append("j.status = ?")
+        params.append(status)
+
+    if min_score is not None:
+        conditions.append("e.stage2_score >= ?")
+        params.append(min_score)
+
+    if work_model is not None:
+        conditions.append("j.work_model = ?")
+        params.append(work_model)
+
+    if source is not None:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM job_sources s WHERE s.job_id = j.id AND s.source_name = ?)"
+        )
+        params.append(source)
+
+    if search is not None:
+        conditions.append("j.title LIKE ?")
+        params.append(f"%{search}%")
+
+    if has_deadline is True:
+        conditions.append("j.deadline IS NOT NULL")
+    elif has_deadline is False:
+        conditions.append("j.deadline IS NULL")
+
+    where = " AND ".join(conditions)
+
+    # sort_by Whitelist gegen SQL-Injection
+    sort_columns = {
+        "score": "e.stage2_score",
+        "deadline": "j.deadline",
+        "date": "j.first_seen_at",
+        "title": "j.title",
+    }
+    sort_col = sort_columns.get(sort_by, "j.first_seen_at")
+    direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
+    nulls = "NULLS LAST" if direction == "DESC" else "NULLS FIRST"
+
+    base_from = """
+        FROM jobs j
+        LEFT JOIN evaluations e ON e.job_id = j.id AND e.user_id = ?
+        LEFT JOIN companies c ON c.id = j.company_id
+    """
+
+    # Total Count
+    count_sql = f"SELECT COUNT(*) as cnt {base_from} WHERE {where}"  # noqa: S608
+    count_cursor = await db.execute(count_sql, (user_id, *params))
+    count_row = await count_cursor.fetchone()
+    total = count_row["cnt"] if count_row else 0
+
+    # Paginierte Ergebnisse
+    results_sql = f"""
+        SELECT j.*,
+               c.name as company_name, c.address_city as company_city,
+               c.remote_policy as company_remote_policy, c.careers_url as company_careers_url,
+               e.stage2_score, e.stage2_recommendation,
+               e.stage1_pass, e.location_score, e.location_effective_minutes
+        {base_from}
+        WHERE {where}
+        ORDER BY {sort_col} {direction} {nulls}
+        LIMIT ? OFFSET ?
+    """  # noqa: S608
+    cursor = await db.execute(results_sql, (user_id, *params, limit, offset))
+    rows = await cursor.fetchall()
+
+    return total, [dict(row) for row in rows]
+
+
+async def get_job_with_details(
+    db: aiosqlite.Connection, job_id: int, user_id: str
+) -> dict[str, object] | None:
+    """Gibt einen Job mit Company, Evaluation, Sources und Feedback zurück.
+
+    Zusammengesetzt aus mehreren Queries für übersichtliche Struktur.
+    """
+    # Job + Company
+    cursor = await db.execute(
+        """
+        SELECT j.*, c.name as company_name, c.name_normalized as company_name_normalized,
+               c.address_street, c.address_city, c.address_zip,
+               c.lat as company_lat, c.lng as company_lng,
+               c.address_status, c.remote_policy, c.careers_url, c.ats_system
+        FROM jobs j
+        LEFT JOIN companies c ON c.id = j.company_id
+        WHERE j.id = ?
+        """,
+        (job_id,),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+
+    result = dict(row)
+
+    # Evaluation
+    ev_cursor = await db.execute(
+        "SELECT * FROM evaluations WHERE job_id = ? AND user_id = ?",
+        (job_id, user_id),
+    )
+    ev_row = await ev_cursor.fetchone()
+    result["evaluation"] = dict(ev_row) if ev_row else None
+
+    # Sources
+    src_cursor = await db.execute(
+        "SELECT * FROM job_sources WHERE job_id = ? ORDER BY is_canonical DESC",
+        (job_id,),
+    )
+    src_rows = await src_cursor.fetchall()
+    result["sources"] = [dict(r) for r in src_rows]
+
+    # Feedback
+    fb_cursor = await db.execute(
+        "SELECT * FROM feedback WHERE job_id = ? AND user_id = ? ORDER BY decided_at DESC",
+        (job_id, user_id),
+    )
+    fb_rows = await fb_cursor.fetchall()
+    result["feedback"] = [dict(r) for r in fb_rows]
+
+    # Skills
+    sk_cursor = await db.execute(
+        "SELECT skill, skill_type, confidence FROM job_skills WHERE job_id = ?"
+        " ORDER BY confidence DESC",
+        (job_id,),
+    )
+    sk_rows = await sk_cursor.fetchall()
+    result["skills"] = [dict(r) for r in sk_rows]
+
+    return result
+
+
+async def update_job_status(db: aiosqlite.Connection, job_id: int, status: str) -> bool:
+    """Aktualisiert den Status eines Jobs. Gibt True zurück wenn der Job existierte."""
+    allowed = {
+        "new",
+        "reviewed",
+        "applying",
+        "applied",
+        "interview",
+        "offer",
+        "rejected",
+        "expired",
+        "ignored",
+    }
+    if status not in allowed:
+        raise ValueError(f"Ungültiger Status: {status}. Erlaubt: {allowed}")
+
+    cursor = await db.execute(
+        "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
+        (status, now_iso(), job_id),
+    )
+    await db.commit()
+    return (cursor.rowcount or 0) > 0

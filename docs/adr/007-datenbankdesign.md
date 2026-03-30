@@ -413,5 +413,36 @@ Aktuell ist die Datenbank für einen einzelnen Nutzer ausgelegt. Geplante Änder
 
 Tabellen ohne User-Kontext (geteilte Daten): `jobs`, `companies`, `job_sources`, `transit_cache`, `scrape_runs`, `clarification_queue`, `job_skills`, `skill_trends`.
 
-### Evaluierungs-Pipeline (ausstehend)
-`evaluations`, `feedback`, `cover_letters`, `preference_patterns`, `job_skills`, `skill_trends` sind im Schema angelegt aber noch nicht befüllt — die Evaluierungs-Pipeline ist noch nicht implementiert.
+### Evaluierungs-Pipeline (implementiert, März 2026)
+`evaluations`, `feedback`, `job_skills` werden durch die Evaluierungs-Pipeline befüllt (AP-01–AP-17).
+`cover_letters`, `preference_patterns`, `skill_trends` sind im Schema vorhanden, aber noch nicht befüllt.
+
+---
+
+### Datenlage-Status (März 2026)
+
+Analysierbar mit `scripts/data_quality_report.py --verbose`.
+
+**Bekannte Datenlücken (qualitativ):**
+- `raw_text = NULL`: Kimeta, Jooble, Adzuna, Stellenmarkt liefern keinen Volltext (kein Detail-Fetching implementiert)
+- `content_hash`: Im Schema vorhanden, aber nicht befüllt (Änderungserkennung inaktiv)
+- `change_history`: Im Schema vorhanden, aber nicht befüllt
+- `work_model = NULL`: Jobs ohne explizite Homeoffice-Angabe im Scraper-Output
+- `companies.address_status = 'unknown'`: Viele Firmen noch nicht geocoded
+
+**Imputation aus Duplikaten:**
+Für Jobs die von mehreren Scrapern gefunden wurden (`job_sources.job_id` mit mehreren Einträgen)
+können fehlende Felder ggf. durch erneutes Scraping einer anderen Quelle befüllt werden.
+Das `data_quality_report.py`-Script quantifiziert dieses Potenzial pro Feld.
+
+**LLM-Feldextraktion (Entscheidung ausstehend):**
+Für Jobs mit vorhandenem `raw_text` könnten fehlende Felder (`work_model`, `salary_raw`,
+`location_raw`) per LLM aus dem Volltext extrahiert werden. Timing-Entscheidung:
+Stage 1b (Ollama), Stage 2 (Claude), oder eigenständiger Pre-Processing-Schritt.
+Implementierungsstrategie: Abfrage der NULL-Felder pro Job → Prompt-Injektion
+`"Fülle dieses JSON {missing_fields: None} aus dem Volltext"`.
+
+**Filter-Impact:**
+Jobs ohne `raw_text` können Stage 1b (Ollama LLM-Filter) nicht durchlaufen.
+Jobs ohne Firmen-Koordinaten erhalten keinen Pendel-Score in Stage 2.
+Das `filter_impact`-Feld im Quality-Report quantifiziert diese Auswirkungen.

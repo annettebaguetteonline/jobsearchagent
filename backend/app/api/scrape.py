@@ -1,7 +1,9 @@
-"""Scraping-API: Scrape-Run starten und Status abfragen."""
+"""Scraping-API: Scrape-Run starten, Status abfragen und abbrechen."""
 
+import asyncio
 import json
 import logging
+import threading
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -42,6 +44,9 @@ _SCRAPERS: dict[str, type] = {
     "kimeta": KimetaScraper,
 }
 
+# Aktive Cancel-Events pro Run-ID (nur für laufende Runs)
+_cancel_events: dict[int, threading.Event] = {}
+
 # ─── Request / Response-Modelle ───────────────────────────────────────────────
 
 
@@ -58,6 +63,12 @@ class ScrapeStartResponse(BaseModel):
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 
+@router.get("/sources")
+async def list_sources() -> dict[str, list[str]]:
+    """Gibt die verfügbaren Scraper-Quellen zurück."""
+    return {"sources": list(_SCRAPERS.keys())}
+
+
 @router.post("/start", response_model=ScrapeStartResponse)
 async def start_scrape(
     request: ScrapeStartRequest,
@@ -66,23 +77,44 @@ async def start_scrape(
     """Startet einen Scraping-Durchlauf im Hintergrund.
 
     Kehrt sofort mit der run_id zurück — Status über GET /scrape/runs/{run_id} abfragen.
-    Typischer Aufruf: `curl -X POST /api/scrape/start`
+    Der Scraper läuft in einem eigenen Thread, sodass die API während des Scans
+    weiterhin antwortfähig bleibt.
     """
     sources = _resolve_sources(request.sources)
 
     async for db in get_db():
         run_id = await create_scrape_run(db)
-        await db.execute(
-            "UPDATE scrape_runs SET sources_run = ? WHERE id = ?",
-            (json.dumps(sources), run_id),
-        )
-        await db.commit()
         break
 
-    background_tasks.add_task(_run_scrapers, run_id, sources)
+    cancel_event = threading.Event()
+    _cancel_events[run_id] = cancel_event
+
+    # Sync-Wrapper → Starlette führt ihn in einem ThreadPoolExecutor aus,
+    # sodass der asyncio Event-Loop des Servers frei bleibt.
+    background_tasks.add_task(_run_in_new_loop, run_id, sources, cancel_event)
     logger.info("Scrape-Run %d gestartet: %s", run_id, sources)
 
     return ScrapeStartResponse(run_id=run_id, sources=sources)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_scrape(run_id: int) -> dict[str, str]:
+    """Bricht einen laufenden Scrape-Run ab.
+
+    Setzt das Cancel-Flag — der laufende Scraper beendet die aktuelle Quelle
+    und startet keine weiteren. Status wechselt zu 'cancelled'.
+    """
+    event = _cancel_events.get(run_id)
+    if event is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Kein aktiver Scrape-Run {run_id} gefunden (bereits beendet oder nie gestartet)"
+            ),
+        )
+    event.set()
+    logger.info("Cancel-Signal für Scrape-Run %d gesetzt", run_id)
+    return {"status": "cancelling"}
 
 
 @router.get("/runs/{run_id}", response_model=ScrapeRun)
@@ -114,26 +146,48 @@ def _resolve_sources(requested: list[str] | None) -> list[str]:
     return list(_SCRAPERS.keys())
 
 
+# ─── Thread-Wrapper ───────────────────────────────────────────────────────────
+
+
+def _run_in_new_loop(run_id: int, sources: list[str], cancel_event: threading.Event) -> None:
+    """Synchroner Einstiegspunkt — wird von Starletttes ThreadPoolExecutor aufgerufen.
+
+    Erstellt einen eigenen asyncio Event-Loop für den Scraper-Thread, sodass
+    CPU-intensive Operationen (HTML-Parsing, Fuzzy-Matching) den FastAPI
+    Event-Loop nicht blockieren.
+    """
+    asyncio.run(_run_scrapers(run_id, sources, cancel_event))
+
+
 # ─── Background-Task ──────────────────────────────────────────────────────────
 
 
-async def _run_scrapers(run_id: int, sources: list[str]) -> None:
+async def _run_scrapers(run_id: int, sources: list[str], cancel_event: threading.Event) -> None:
     """Führt alle angeforderten Scraper sequenziell aus.
 
-    Verwendet den bereits angelegten run_id — kein doppelter DB-Eintrag.
+    - Prüft zwischen jeder Quelle ob ein Cancel-Signal gesetzt wurde.
+    - Aktualisiert sources_run nach jeder abgeschlossenen Quelle (Fortschritts-Tracking).
+    - Setzt Status auf 'cancelled', 'failed' oder 'finished'.
     """
     combined = ScrapeRunStats()
     error_log: list[str] = []
-    final_status = "finished"
+    completed_sources: list[str] = []
 
     async for db in get_db():
         for source_name in sources:
+            if cancel_event.is_set():
+                logger.info(
+                    "Scrape-Run %d: Cancel-Signal erkannt, stoppe nach %s",
+                    run_id,
+                    completed_sources,
+                )
+                break
+
             scraper = _SCRAPERS[source_name]()
             if source_name == "kimeta":
                 known = await get_known_source_job_ids(db, "kimeta")
                 scraper.known_job_ids = frozenset(known)
             try:
-                # run_id übergeben → kein neuer Run wird innerhalb des Scrapers angelegt
                 stats = await scraper.run(db, run_id=run_id)
                 combined.fetched += stats.fetched
                 combined.new += stats.new
@@ -145,14 +199,30 @@ async def _run_scrapers(run_id: int, sources: list[str]) -> None:
                 logger.error(msg)
                 error_log.append(msg)
 
-        # Abgelaufene Stellen markieren (deadline < now → is_active=0, status='expired')
-        combined.expired = await mark_expired_jobs(db)
-        if combined.expired:
-            logger.info(
-                "Scrape-Run %d: %d Stellen als abgelaufen markiert", run_id, combined.expired
+            completed_sources.append(source_name)
+            # Fortschritts-Update: abgeschlossene Quellen sofort in DB schreiben
+            await db.execute(
+                "UPDATE scrape_runs SET sources_run = ? WHERE id = ?",
+                (json.dumps(completed_sources), run_id),
             )
+            await db.commit()
 
-        final_status = "failed" if error_log and combined.new == 0 else "finished"
+        # Abgelaufene Stellen nur markieren wenn nicht vorzeitig abgebrochen
+        if not cancel_event.is_set():
+            combined.expired = await mark_expired_jobs(db)
+            if combined.expired:
+                logger.info(
+                    "Scrape-Run %d: %d Stellen als abgelaufen markiert", run_id, combined.expired
+                )
+
+        cancelled = cancel_event.is_set()
+        if cancelled:
+            final_status = "cancelled"
+        elif error_log and combined.new == 0:
+            final_status = "failed"
+        else:
+            final_status = "finished"
+
         await db.execute(
             """
             UPDATE scrape_runs
@@ -170,10 +240,15 @@ async def _run_scrapers(run_id: int, sources: list[str]) -> None:
         await db.commit()
         break
 
+    # Cleanup: Cancel-Event entfernen
+    _cancel_events.pop(run_id, None)
+
     logger.info(
-        "Scrape-Run %d abgeschlossen (%s): %d neu, %d Duplikate",
+        "Scrape-Run %d abgeschlossen (%s): %d neu, %d Duplikate, %d/%d Quellen",
         run_id,
         final_status,
         combined.new,
         combined.duplicate,
+        len(completed_sources),
+        len(sources),
     )
